@@ -5,7 +5,9 @@ export const messages = sqliteTable("messages", {
   content: text("content").notNull(),
   role: text("role").notNull(), // 'user' | 'assistant'
   model: text("model").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 export const models = sqliteTable("models", {
@@ -14,5 +16,7 @@ export const models = sqliteTable("models", {
   alias: text("alias").notNull(),
   size: integer("size"),
   downloaded: integer("downloaded", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });

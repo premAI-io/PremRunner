@@ -17,6 +17,7 @@ export default function App() {
   const [inputMessage, setInputMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<string>("");
+  const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -61,38 +62,120 @@ export default function App() {
     setLoading(true);
 
     // Add user message to UI immediately
-    const tempUserMessage: Message = {
-      id: Date.now().toString(),
+    const newUserMessage: Message = {
+      id: crypto.randomUUID(),
       content: userMessage,
       role: "user",
       model: "gemma3:270m",
       createdAt: new Date().toISOString(),
     };
-    setMessages(prev => [...prev, tempUserMessage]);
+    setMessages((prev) => [...prev, newUserMessage]);
 
-    try {
-      // Use OpenAI-compatible endpoint
-      const response = await client.v1["chat"]["completions"].$post({
-        json: {
-          model: "gemma3:270m",
-          messages: [{ role: "user", content: userMessage }]
-        }
-      });
-      const data = await response.json();
+    if (isStreaming) {
+      // Streaming mode
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        content: "",
+        role: "assistant",
+        model: "gemma3:270m",
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
 
-      if (data.choices && data.choices[0]) {
-        const assistantResponse = data.choices[0].message.content;
-        
-        // Replace temp message and add assistant response
-        setMessages(prev => {
-          const withoutTemp = prev.slice(0, -1);
-          const newUserMessage: Message = {
-            id: crypto.randomUUID(),
-            content: userMessage,
-            role: "user",
+      try {
+        const response = await fetch("/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
             model: "gemma3:270m",
-            createdAt: new Date().toISOString(),
+            messages: [{ role: "user", content: userMessage }],
+            stream: true,
+          }),
+        });
+
+        if (!response.body) {
+          throw new Error("No response body");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6);
+                if (data === "[DONE]") {
+                  setLoading(false);
+                  return;
+                }
+
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.choices?.[0]?.delta?.content) {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      const lastIndex = updated.length - 1;
+                      if (
+                        updated[lastIndex] &&
+                        updated[lastIndex].role === "assistant"
+                      ) {
+                        updated[lastIndex] = {
+                          ...updated[lastIndex],
+                          content:
+                            updated[lastIndex].content +
+                            parsed.choices[0].delta.content,
+                        };
+                      }
+                      return updated;
+                    });
+                  }
+                } catch (parseError) {
+                  // Skip invalid JSON
+                }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      } catch (error) {
+        console.error("Streaming error:", error);
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            content: "Error: Failed to get streaming response",
+            model: "error",
           };
+          return updated;
+        });
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Non-streaming mode
+      try {
+        const response = await client.v1["chat"]["completions"].$post({
+          json: {
+            model: "gemma3:270m",
+            messages: [{ role: "user", content: userMessage }],
+            stream: false,
+          },
+        });
+        const data = await response.json();
+
+        if (data.choices && data.choices[0]) {
+          const assistantResponse = data.choices[0].message.content;
+
           const assistantMessage: Message = {
             id: crypto.randomUUID(),
             content: assistantResponse,
@@ -100,31 +183,33 @@ export default function App() {
             model: "gemma3:270m",
             createdAt: new Date().toISOString(),
           };
-          return [...withoutTemp, newUserMessage, assistantMessage];
-        });
-      } else if (data.error) {
-        // Remove temp message and show error
-        setMessages(prev => prev.slice(0, -1));
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          content: `Error: ${data.error.message}`,
-          role: "assistant",
-          model: "error",
-          createdAt: new Date().toISOString(),
-        }]);
+          setMessages((prev) => [...prev, assistantMessage]);
+        } else if (data.error) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              content: `Error: ${data.error.message}`,
+              role: "assistant",
+              model: "error",
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+        }
+      } catch (error) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            content: "Error: Failed to send message",
+            role: "assistant",
+            model: "error",
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      // Remove temp message and show error
-      setMessages(prev => prev.slice(0, -1));
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        content: "Error: Failed to send message",
-        role: "assistant",
-        model: "error",
-        createdAt: new Date().toISOString(),
-      }]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -138,7 +223,7 @@ export default function App() {
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
@@ -152,11 +237,29 @@ export default function App() {
           <h1 className="text-2xl font-bold text-gray-800">PremRunner Chat</h1>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${
-                ollamaStatus === 'running' ? 'bg-green-500' : 
-                ollamaStatus === 'stopped' ? 'bg-yellow-500' : 'bg-red-500'
-              }`}></div>
-              <span className="text-sm text-gray-600">Ollama {ollamaStatus}</span>
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  ollamaStatus === "running"
+                    ? "bg-green-500"
+                    : ollamaStatus === "stopped"
+                      ? "bg-yellow-500"
+                      : "bg-red-500"
+                }`}
+              ></div>
+              <span className="text-sm text-gray-600">
+                Ollama {ollamaStatus}
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="flex items-center space-x-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={isStreaming}
+                  onChange={(e) => setIsStreaming(e.target.checked)}
+                  className="rounded"
+                />
+                <span>Streaming</span>
+              </label>
             </div>
             <button
               onClick={clearChat}
@@ -180,21 +283,23 @@ export default function App() {
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
                   className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    msg.role === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : msg.model === 'error'
-                      ? 'bg-red-100 text-red-800 border border-red-200'
-                      : 'bg-white text-gray-800 border shadow-sm'
+                    msg.role === "user"
+                      ? "bg-blue-500 text-white"
+                      : msg.model === "error"
+                        ? "bg-red-100 text-red-800 border border-red-200"
+                        : "bg-white text-gray-800 border shadow-sm"
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
-                  <p className={`text-xs mt-1 ${
-                    msg.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-                  }`}>
+                  <p
+                    className={`text-xs mt-1 ${
+                      msg.role === "user" ? "text-blue-100" : "text-gray-500"
+                    }`}
+                  >
                     {new Date(msg.createdAt).toLocaleTimeString()}
                   </p>
                 </div>
@@ -206,10 +311,18 @@ export default function App() {
                   <div className="flex items-center space-x-2">
                     <div className="flex space-x-1">
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.1s" }}
+                      ></div>
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.2s" }}
+                      ></div>
                     </div>
-                    <span className="text-sm text-gray-500">AI is thinking...</span>
+                    <span className="text-sm text-gray-500">
+                      AI is thinking...
+                    </span>
                   </div>
                 </div>
               </div>
@@ -237,7 +350,7 @@ export default function App() {
               disabled={loading || !inputMessage.trim()}
               className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
-              {loading ? 'Sending...' : 'Send'}
+              {loading ? "Sending..." : "Send"}
             </button>
           </div>
         </div>

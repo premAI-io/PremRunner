@@ -20,10 +20,10 @@ const app = new Hono()
 async function startServer() {
   // Initialize database
   await initializeDatabase();
-  
+
   // Ensure Ollama is running before starting the server
   console.log("🚀 Starting PremRunner...");
-  
+
   const ollamaReady = await ensureOllamaRunning();
   if (!ollamaReady) {
     console.error("❌ Failed to start Ollama. Exiting...");

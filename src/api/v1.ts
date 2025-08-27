@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db/index";
 import { messages } from "../db/schema";
-import { chatWithOllama } from "./ollama";
+import { chatWithOllama, chatWithOllamaStream } from "./ollama";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -38,35 +38,114 @@ interface ChatCompletionResponse {
   };
 }
 
-const v1Api = new Hono()
-  .post("/chat/completions", async (c) => {
-    try {
-      const body: ChatCompletionRequest = await c.req.json();
-      
-      if (!body.messages || body.messages.length === 0) {
-        return c.json({ error: { message: "Messages are required" } }, 400);
-      }
+const v1Api = new Hono().post("/chat/completions", async (c) => {
+  try {
+    const body: ChatCompletionRequest = await c.req.json();
 
-      const model = body.model || "gemma3:270m";
-      
-      // Get the last user message for the prompt
-      const lastMessage = body.messages[body.messages.length - 1];
-      if (lastMessage.role !== "user") {
-        return c.json({ error: { message: "Last message must be from user" } }, 400);
-      }
+    if (!body.messages || body.messages.length === 0) {
+      return c.json({ error: { message: "Messages are required" } }, 400);
+    }
 
-      const prompt = lastMessage.content;
+    const model = body.model || "gemma3:270m";
+    const isStream = body.stream === true;
 
-      // Save user message to database
-      const userMessageId = crypto.randomUUID();
-      await db.insert(messages).values({
-        id: userMessageId,
-        content: prompt,
-        role: "user",
-        model,
+    // Get the last user message for the prompt
+    const lastMessage = body.messages[body.messages.length - 1];
+    if (lastMessage.role !== "user") {
+      return c.json(
+        { error: { message: "Last message must be from user" } },
+        400,
+      );
+    }
+
+    const prompt = lastMessage.content;
+
+    // Save user message to database
+    const userMessageId = crypto.randomUUID();
+    await db.insert(messages).values({
+      id: userMessageId,
+      content: prompt,
+      role: "user",
+      model,
+    });
+
+    const chatId = `chatcmpl-${crypto.randomUUID()}`;
+    const created = Math.floor(Date.now() / 1000);
+
+    if (isStream) {
+      // Streaming response
+      c.header("Content-Type", "text/event-stream");
+      c.header("Cache-Control", "no-cache");
+      c.header("Connection", "keep-alive");
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          let fullResponse = "";
+
+          try {
+            for await (const chunk of chatWithOllamaStream(model, prompt)) {
+              fullResponse += chunk;
+
+              const streamChunk = {
+                id: chatId,
+                object: "chat.completion.chunk",
+                created,
+                model,
+                choices: [
+                  {
+                    index: 0,
+                    delta: { content: chunk },
+                    finish_reason: null,
+                  },
+                ],
+              };
+
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(streamChunk)}\n\n`),
+              );
+            }
+
+            // Final chunk
+            const finalChunk = {
+              id: chatId,
+              object: "chat.completion.chunk",
+              created,
+              model,
+              choices: [
+                {
+                  index: 0,
+                  delta: {},
+                  finish_reason: "stop",
+                },
+              ],
+            };
+
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(finalChunk)}\n\n`),
+            );
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+
+            // Save assistant response to database
+            const assistantMessageId = crypto.randomUUID();
+            await db.insert(messages).values({
+              id: assistantMessageId,
+              content: fullResponse,
+              role: "assistant",
+              model,
+            });
+          } catch (error) {
+            console.error("Streaming error:", error);
+            controller.error(error);
+          } finally {
+            controller.close();
+          }
+        },
       });
 
-      // Get response from Ollama
+      return new Response(stream);
+    } else {
+      // Non-streaming response
       const response = await chatWithOllama(model, prompt);
 
       // Save assistant response to database
@@ -80,9 +159,9 @@ const v1Api = new Hono()
 
       // Create OpenAI-compatible response
       const completion: ChatCompletionResponse = {
-        id: `chatcmpl-${crypto.randomUUID()}`,
+        id: chatId,
         object: "chat.completion",
-        created: Math.floor(Date.now() / 1000),
+        created,
         model,
         choices: [
           {
@@ -102,15 +181,19 @@ const v1Api = new Hono()
       };
 
       return c.json(completion);
-    } catch (error) {
-      console.error("Chat completion error:", error);
-      return c.json({ 
-        error: { 
-          message: "Internal server error",
-          type: "server_error"
-        } 
-      }, 500);
     }
-  });
+  } catch (error) {
+    console.error("Chat completion error:", error);
+    return c.json(
+      {
+        error: {
+          message: "Internal server error",
+          type: "server_error",
+        },
+      },
+      500,
+    );
+  }
+});
 
 export default v1Api;

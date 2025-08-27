@@ -7,7 +7,7 @@ const chatApi = new Hono()
   .post("/send", async (c) => {
     try {
       const { message, model = "gemma3:270m" } = await c.req.json();
-      
+
       if (!message) {
         return c.json({ error: "Message is required" }, 400);
       }
