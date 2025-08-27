@@ -10,9 +10,8 @@ It will be compatible with Prem sdk.
 - Call models from the browser
 - Use Prem sdk to interact with the models
 
-
-
 Tech stack:
+
 - Bun
 - db: Native bun sqlite + drizzle
 - react supported natively by bun (no build process)
@@ -26,19 +25,6 @@ https://bun.com/docs/bundler/executables
 
 https://hono.dev/llms-full.txt
 
-
-
-
 in testForOllama.ts I put a test script that checks if ollama is running and if not it starts it and waits for it to be ready, We will need to be working both on mac and linux.
 
-
-
 The MVP is: website that allows to chat with a model, upload models and see all the active models in a list. Also the API needs to be compatible with Prem sdk (in premSaaSRelevantCode there is the interface that we need to mimic here but can't rely on the proxy gateway, we need to use the ollama api directly)
-
-
-
-
-
-
-
-
