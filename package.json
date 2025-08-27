@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "format": "prettier --write .",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "drizzle-kit generate && bun scripts/embed-migrations.ts",
     "db:push": "drizzle-kit push",
     "studio": "drizzle-kit studio"
   },
