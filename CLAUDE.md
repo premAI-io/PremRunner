@@ -8,6 +8,28 @@ alwaysApply: true
 
 PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploads and browser-based model interaction. Compatible with Prem SDK.
 
+## Current Implementation Status
+
+✅ **Completed:**
+- Basic Hono server setup with hot reload
+- OpenAI-compatible `/v1/chat/completions` endpoint (streaming & non-streaming)
+- Ollama integration with automatic startup management
+- SQLite database with Drizzle ORM
+- Database migrations embedded for executables
+- Basic chat API at `/api/chat`
+- Messages table for storing chat history
+- React frontend with Tailwind CSS
+
+🚧 **In Progress:**
+- Model upload functionality
+- Models management UI
+
+❌ **Not Yet Implemented:**
+- Drag-and-drop model file uploads
+- `/v1/models` endpoint to list available models
+- Model management endpoints (upload/delete)
+- Complete frontend chat interface
+
 ## Tech Stack & Tools
 
 **Runtime & Package Manager:**
@@ -17,17 +39,21 @@ PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploa
 - `bun install` instead of npm/yarn/pnpm
 - `bun run <script>` instead of npm/yarn scripts
 - Bun automatically loads .env, so don't use dotenv
+- Server runs on port 3001
 
 **Database:**
 
-- SQLite with `bun:sqlite` (don't use better-sqlite3)
+- SQLite with `bun:sqlite` (Note: better-sqlite3 is in devDependencies but use bun:sqlite)
 - Drizzle ORM for schema and queries
-- Simple models table for uploaded models
+- Current tables:
+  - `messages` - Stores chat messages
+  - `models` - For uploaded models (schema defined, not yet used)
+- Embedded migrations support for executable builds
 
 **API Framework:**
 
-- Use Hono for API routes (already in usefulCodeToCopy/)
-- Maintain OpenAI chat completions API compatibility for `/v1/chat/completions`
+- Hono for API routes (implemented)
+- OpenAI chat completions API compatibility at `/v1/chat/completions` (implemented)
 - Client uses `hc` from 'hono/client' for type-safe API calls
 
 **Frontend:**
@@ -35,11 +61,11 @@ PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploa
 - React (supported natively by Bun)
 - Tailwind CSS from CDN (no build step)
 - HTML imports with `Bun.serve()` - no Vite
-- Single Page Application (SPA)
+- Single Page Application (SPA) served at `/`
 
 **External Dependencies:**
 
-- Ollama binary management and API integration
+- Ollama binary management and API integration (implemented)
 - WebSocket support built into Bun
 
 ## Database Schema (Drizzle + SQLite)
@@ -68,17 +94,24 @@ export const models = sqliteTable("models", {
 
 ## API Structure
 
-**Required endpoints for Prem SDK compatibility:**
+**Implemented endpoints:**
 
-- `POST /v1/chat/completions` - OpenAI compatible chat endpoint
-- `GET /v1/models` - List available models
-- Model management endpoints for upload/delete
+- `POST /v1/chat/completions` - OpenAI compatible chat endpoint ✅
+- `GET /api/hello` - Test endpoint ✅
+- `GET /api/ollama/status` - Check Ollama status ✅
+- `/api/chat` routes - Basic chat functionality ✅
+
+**Required endpoints for full Prem SDK compatibility:**
+
+- `GET /v1/models` - List available models ❌
+- `POST /v1/models/upload` - Upload new model ❌
+- `DELETE /v1/models/:id` - Delete model ❌
 
 **Frontend routes:**
 
-- `/` - Main chat interface
-- Model upload interface
-- Models list/management
+- `/` - Main chat interface (basic implementation) ✅
+- Model upload interface ❌
+- Models list/management ❌
 
 ## Server Setup
 
@@ -145,5 +178,8 @@ Keep it simple:
 
 ## Development Commands
 
-- `bun --hot index.ts` - Start development server
+- `bun --hot src/index.ts` - Start development server with hot reload
 - `bun run format` - Format code with Prettier
+- `bun run db:generate` - Generate database migrations and embed them
+- `bun run db:push` - Push database schema changes
+- `bun run studio` - Open Drizzle Studio for database management
