@@ -1,111 +1,141 @@
 ---
-description: Use Bun instead of Node.js, npm, pnpm, or vite.
+description: PremRunner - Ollama wrapper with drag-and-drop model uploads
 globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
-alwaysApply: false
+alwaysApply: true
 ---
 
-Default to using Bun instead of Node.js.
+# PremRunner Project
 
-- Use `bun <file>` instead of `node <file>` or `ts-node <file>`
-- Use `bun test` instead of `jest` or `vitest`
-- Use `bun build <file.html|file.ts|file.css>` instead of `webpack` or `esbuild`
-- Use `bun install` instead of `npm install` or `yarn install` or `pnpm install`
-- Use `bun run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
-- Bun automatically loads .env, so don't use dotenv.
+PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploads and browser-based model interaction. Compatible with Prem SDK.
 
-## APIs
+## Tech Stack & Tools
 
-- `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
-- `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
-- `Bun.redis` for Redis. Don't use `ioredis`.
-- `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
-- `WebSocket` is built-in. Don't use `ws`.
-- Prefer `Bun.file` over `node:fs`'s readFile/writeFile
-- Bun.$`ls` instead of execa.
+**Runtime & Package Manager:**
+- Use Bun instead of Node.js
+- `bun <file>` instead of `node <file>` or `ts-node <file>`
+- `bun install` instead of npm/yarn/pnpm
+- `bun run <script>` instead of npm/yarn scripts
+- Bun automatically loads .env, so don't use dotenv
 
-## Testing
+**Database:**
+- SQLite with `bun:sqlite` (don't use better-sqlite3)
+- Drizzle ORM for schema and queries
+- Simple models table for uploaded models
 
-Use `bun test` to run tests.
+**API Framework:**
+- Use Hono for API routes (already in usefulCodeToCopy/)
+- Maintain OpenAI chat completions API compatibility for `/v1/chat/completions`
+- Client uses `hc` from 'hono/client' for type-safe API calls
 
-```ts#index.test.ts
-import { test, expect } from "bun:test";
+**Frontend:**
+- React (supported natively by Bun)
+- Tailwind CSS from CDN (no build step)
+- HTML imports with `Bun.serve()` - no Vite
+- Single Page Application (SPA)
 
-test("hello world", () => {
-  expect(1).toBe(1);
+**External Dependencies:**
+- Ollama binary management and API integration
+- WebSocket support built into Bun
+
+## Database Schema (Drizzle + SQLite)
+
+Create a simple models table:
+
+```ts
+import { sqliteTable, text, integer, boolean } from 'drizzle-orm/sqlite-core';
+
+export const models = sqliteTable('models', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  alias: text('alias').notNull(),
+  size: integer('size'),
+  uploadedAt: integer('uploaded_at', { mode: 'timestamp' }),
+  active: boolean('active').default(true),
 });
 ```
 
-## Frontend
+## Ollama Integration
 
-Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.
+- Use the pattern from `usefulCodeToCopy/testForOllama.ts` for Ollama lifecycle management
+- Ensure Ollama is running before API calls
+- Handle model uploads via Ollama API
+- Support both macOS and Linux environments
 
-Server:
+## API Structure
 
-```ts#index.ts
-import index from "./index.html"
+**Required endpoints for Prem SDK compatibility:**
+- `POST /v1/chat/completions` - OpenAI compatible chat endpoint
+- `GET /v1/models` - List available models
+- Model management endpoints for upload/delete
 
+**Frontend routes:**
+- `/` - Main chat interface
+- Model upload interface
+- Models list/management
+
+## Server Setup
+
+```ts
+import { Hono } from 'hono';
+
+const app = new Hono();
+
+// Serve static HTML
+app.get('/', async (c) => {
+  return c.html(await Bun.file('./public/index.html').text());
+});
+
+// API routes
+app.route('/v1', apiRoutes);
+
+// Start server
 Bun.serve({
-  routes: {
-    "/": index,
-    "/api/users/:id": {
-      GET: (req) => {
-        return new Response(JSON.stringify({ id: req.params.id }));
-      },
-    },
-  },
-  // optional websocket support
-  websocket: {
-    open: (ws) => {
-      ws.send("Hello, world!");
-    },
-    message: (ws, message) => {
-      ws.send(message);
-    },
-    close: (ws) => {
-      // handle close
-    }
-  },
+  fetch: app.fetch,
+  port: 3000,
   development: {
     hmr: true,
-    console: true,
   }
-})
+});
 ```
 
-HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
+## Frontend Architecture
 
-```html#index.html
+Keep it simple:
+- Single HTML file with React imports
+- Tailwind from CDN
+- No build process needed
+- Use Hono client for API calls
+
+```html
+<!DOCTYPE html>
 <html>
-  <body>
-    <h1>Hello, world!</h1>
-    <script type="module" src="./frontend.tsx"></script>
-  </body>
+<head>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./app.tsx"></script>
+</body>
 </html>
 ```
 
-With the following `frontend.tsx`:
+## MVP Features
 
-```tsx#frontend.tsx
-import React from "react";
+1. **Chat Interface** - Simple chat UI for model interaction
+2. **Model Upload** - Drag and drop model file uploads
+3. **Models List** - View and manage uploaded models
+4. **Ollama Management** - Automatic Ollama start/stop
 
-// import .css files directly and it works
-import './index.css';
+## Key Patterns
 
-import { createRoot } from "react-dom/client";
+- Always ensure Ollama is running before API calls
+- Use Drizzle for all database operations
+- Keep frontend state minimal
+- No testing framework needed
+- Use `Bun.file()` for file operations
+- Use `Bun.$` for shell commands when needed
 
-const root = createRoot(document.body);
+## Development Commands
 
-export default function Frontend() {
-  return <h1>Hello, world!</h1>;
-}
-
-root.render(<Frontend />);
-```
-
-Then, run index.ts
-
-```sh
-bun --hot ./index.ts
-```
-
-For more information, read the Bun API docs in `node_modules/bun-types/docs/**.md`.
+- `bun --hot index.ts` - Start development server
+- `bun run format` - Format code with Prettier
