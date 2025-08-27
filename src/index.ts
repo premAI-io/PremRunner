@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { serve } from "bun";
 import index from "./client/index.html";
 import { ensureOllamaRunning, checkOllamaStatus } from "./api/ollama";
+import { initializeDatabase } from "./db/index";
+import chatApi from "./api/chat";
 
 const app = new Hono()
   .get("/api/hello", (c) => {
@@ -10,9 +12,13 @@ const app = new Hono()
   .get("/api/ollama/status", async (c) => {
     const status = await checkOllamaStatus();
     return c.json({ status });
-  });
+  })
+  .route("/api/chat", chatApi);
 
 async function startServer() {
+  // Initialize database
+  await initializeDatabase();
+  
   // Ensure Ollama is running before starting the server
   console.log("🚀 Starting PremRunner...");
   

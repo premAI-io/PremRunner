@@ -4,10 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "studio": "drizzle-kit studio"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "better-sqlite3": "^12.2.0"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -15,6 +19,7 @@
   "dependencies": {
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.8",
+    "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.5",
     "hono": "^4.9.4",
     "prettier": "^3.6.2",

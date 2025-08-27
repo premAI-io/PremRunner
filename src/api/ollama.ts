@@ -82,6 +82,78 @@ async function waitForOllamaReady(timeoutSeconds = 20): Promise<boolean> {
   return false;
 }
 
+async function downloadModel(modelName: string): Promise<boolean> {
+  const ollamaPath = await getOllamaPath();
+  console.log(`📥 Downloading model: ${modelName}...`);
+  
+  try {
+    const proc = Bun.spawn([ollamaPath, "pull", modelName], {
+      stdio: ["inherit", "inherit", "inherit"],
+    });
+    
+    const exitCode = await proc.exitCode;
+    if (exitCode === 0) {
+      console.log(`✅ Model ${modelName} downloaded successfully`);
+      return true;
+    } else {
+      console.error(`❌ Failed to download model ${modelName}`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`❌ Error downloading model ${modelName}:`, error);
+    return false;
+  }
+}
+
+async function checkModelExists(modelName: string): Promise<boolean> {
+  const ollamaPath = await getOllamaPath();
+  
+  try {
+    const proc = Bun.spawnSync([ollamaPath, "list"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    
+    const stdout = new TextDecoder().decode(proc.stdout);
+    return stdout.includes(modelName);
+  } catch (error) {
+    console.error("Error checking model list:", error);
+    return false;
+  }
+}
+
+export async function ensureModelDownloaded(modelName: string = "gemma3:270m"): Promise<boolean> {
+  console.log(`🔍 Checking if model ${modelName} is available...`);
+  
+  const exists = await checkModelExists(modelName);
+  if (exists) {
+    console.log(`✅ Model ${modelName} is already available`);
+    return true;
+  }
+  
+  return await downloadModel(modelName);
+}
+
+export async function chatWithOllama(model: string, message: string): Promise<string> {
+  const ollamaPath = await getOllamaPath();
+  
+  try {
+    const proc = Bun.spawnSync([ollamaPath, "run", model, message], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    
+    const stdout = new TextDecoder().decode(proc.stdout);
+    const stderr = new TextDecoder().decode(proc.stderr);
+    
+    if (proc.exitCode === 0 && stdout.trim()) {
+      return stdout.trim();
+    } else {
+      throw new Error(`Ollama error: ${stderr || "No response"}`);
+    }
+  } catch (error) {
+    throw new Error(`Failed to chat with Ollama: ${error}`);
+  }
+}
+
 export async function ensureOllamaRunning(): Promise<boolean> {
   console.log("🔍 Checking Ollama status...");
 
@@ -105,5 +177,9 @@ export async function ensureOllamaRunning(): Promise<boolean> {
   }
 
   console.log("🚀 Ollama is up and running!");
+  
+  // Download initial model
+  await ensureModelDownloaded("gemma3:270m");
+  
   return true;
 }
