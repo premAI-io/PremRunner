@@ -71,23 +71,43 @@ export default function App() {
     setMessages(prev => [...prev, tempUserMessage]);
 
     try {
-      const response = await client.api.chat.send.$post({
-        json: { message: userMessage, model: "gemma3:270m" }
+      // Use OpenAI-compatible endpoint
+      const response = await client.v1["chat"]["completions"].$post({
+        json: {
+          model: "gemma3:270m",
+          messages: [{ role: "user", content: userMessage }]
+        }
       });
       const data = await response.json();
 
-      if (data.userMessage && data.assistantMessage) {
-        // Replace temp message with actual messages from server
+      if (data.choices && data.choices[0]) {
+        const assistantResponse = data.choices[0].message.content;
+        
+        // Replace temp message and add assistant response
         setMessages(prev => {
           const withoutTemp = prev.slice(0, -1);
-          return [...withoutTemp, data.userMessage, data.assistantMessage];
+          const newUserMessage: Message = {
+            id: crypto.randomUUID(),
+            content: userMessage,
+            role: "user",
+            model: "gemma3:270m",
+            createdAt: new Date().toISOString(),
+          };
+          const assistantMessage: Message = {
+            id: crypto.randomUUID(),
+            content: assistantResponse,
+            role: "assistant",
+            model: "gemma3:270m",
+            createdAt: new Date().toISOString(),
+          };
+          return [...withoutTemp, newUserMessage, assistantMessage];
         });
       } else if (data.error) {
         // Remove temp message and show error
         setMessages(prev => prev.slice(0, -1));
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
-          content: `Error: ${data.error}`,
+          content: `Error: ${data.error.message}`,
           role: "assistant",
           model: "error",
           createdAt: new Date().toISOString(),

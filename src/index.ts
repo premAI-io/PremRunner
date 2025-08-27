@@ -4,6 +4,7 @@ import index from "./client/index.html";
 import { ensureOllamaRunning, checkOllamaStatus } from "./api/ollama";
 import { initializeDatabase } from "./db/index";
 import chatApi from "./api/chat";
+import v1Api from "./api/v1";
 
 const app = new Hono()
   .get("/api/hello", (c) => {
@@ -13,7 +14,8 @@ const app = new Hono()
     const status = await checkOllamaStatus();
     return c.json({ status });
   })
-  .route("/api/chat", chatApi);
+  .route("/api/chat", chatApi)
+  .route("/v1", v1Api);
 
 async function startServer() {
   // Initialize database
