@@ -1,22 +1,41 @@
 import { Hono } from "hono";
 import { serve } from "bun";
-import index from "./index.html";
+import index from "./client/index.html";
+import { ensureOllamaRunning, checkOllamaStatus } from "./api/ollama";
 
-const app = new Hono().get("/api/hello", (c) => {
-  return c.json({ message: "Hello World from PremRunner API!" });
-});
+const app = new Hono()
+  .get("/api/hello", (c) => {
+    return c.json({ message: "Hello World from PremRunner API!" });
+  })
+  .get("/api/ollama/status", async (c) => {
+    const status = await checkOllamaStatus();
+    return c.json({ status });
+  });
 
-serve({
-  port: 3001,
-  fetch: app.fetch,
-  routes: {
-    "/": index,
-  },
-  development: {
-    hmr: true,
-  },
-});
+async function startServer() {
+  // Ensure Ollama is running before starting the server
+  console.log("🚀 Starting PremRunner...");
+  
+  const ollamaReady = await ensureOllamaRunning();
+  if (!ollamaReady) {
+    console.error("❌ Failed to start Ollama. Exiting...");
+    process.exit(1);
+  }
 
-console.log("Server running on http://localhost:3001");
+  serve({
+    port: 3001,
+    fetch: app.fetch,
+    routes: {
+      "/": index,
+    },
+    development: {
+      hmr: true,
+    },
+  });
+
+  console.log("✅ Server running on http://localhost:3001");
+}
+
+startServer();
 
 export type ApiType = typeof app;
