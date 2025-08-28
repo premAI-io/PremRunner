@@ -7,11 +7,21 @@ import { ensureOllamaRunning, checkOllamaStatus } from "./api/ollama";
 import chatApi from "./api/chat";
 import v1Api from "./api/v1";
 import config from "./config";
+import { authMiddleware } from "./middleware/auth";
 
 const app = new Hono()
-  .get("/api/hello", (c) => {
-    return c.json({ message: "Hello World from PremRunner API!" });
+  // Auth verification endpoint (no auth required)
+  .post("/api/auth/verify", async (c) => {
+    const { token } = await c.req.json();
+    if (token === config.AUTH_TOKEN) {
+      return c.json({ success: true });
+    }
+    return c.json({ error: "Invalid token" }, 401);
   })
+  // Apply auth middleware to all API routes
+  .use("/api/*", authMiddleware)
+  .use("/v1/*", authMiddleware)
+  // Protected API routes
   .get("/api/ollama/status", async (c) => {
     const status = await checkOllamaStatus();
     return c.json({ status });
@@ -46,7 +56,7 @@ async function startServer() {
     process.exit(1);
   }
 
-  const server = serve({
+  serve({
     port: 3001,
     fetch: app.fetch,
     routes: {
@@ -65,4 +75,5 @@ async function startServer() {
 
 startServer();
 
-export type ApiType = typeof app;
+export type AppType = typeof app;
+export default app;

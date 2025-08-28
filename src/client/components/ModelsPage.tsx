@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { authFetch } from "../utils/api";
 
 interface Model {
   id: string;
@@ -30,7 +31,7 @@ export default function ModelsPage() {
 
   const loadModels = async () => {
     try {
-      const response = await fetch("/v1/models");
+      const response = await authFetch("/v1/models");
       if (response.ok) {
         const data = await response.json();
         setModels(data.models || []);
@@ -119,7 +120,7 @@ export default function ModelsPage() {
     );
 
     // Step 1: Initialize chunked upload
-    const initResponse = await fetch("/v1/chunked-upload/start", {
+    const initResponse = await authFetch("/v1/chunked-upload/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -148,7 +149,7 @@ export default function ModelsPage() {
       formData.append("chunkIndex", i.toString());
       formData.append("totalChunks", totalChunks.toString());
 
-      const chunkResponse = await fetch("/v1/chunked-upload/chunk", {
+      const chunkResponse = await authFetch("/v1/chunked-upload/chunk", {
         method: "POST",
         body: formData,
       });
@@ -165,7 +166,7 @@ export default function ModelsPage() {
     }
 
     // Step 3: Complete upload
-    const completeResponse = await fetch("/v1/chunked-upload/complete", {
+    const completeResponse = await authFetch("/v1/chunked-upload/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -212,7 +213,7 @@ export default function ModelsPage() {
         formData.append("modelName", modelName.trim());
         formData.append("filePath", result.path);
 
-        const importResponse = await fetch("/v1/models/import", {
+        const importResponse = await authFetch("/v1/models/import", {
           method: "POST",
           body: formData,
         });
@@ -303,7 +304,7 @@ export default function ModelsPage() {
     }
 
     try {
-      const response = await fetch(`/v1/models/${modelId}`, {
+      const response = await authFetch(`/v1/models/${modelId}`, {
         method: "DELETE",
       });
       if (response.ok) {
@@ -329,7 +330,7 @@ export default function ModelsPage() {
 
     const checkStatus = async () => {
       try {
-        const response = await fetch(`/v1/models/${modelId}/status`);
+        const response = await authFetch(`/v1/models/${modelId}/status`);
         if (response.ok) {
           const data = await response.json();
           if (data.imported) {

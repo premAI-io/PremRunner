@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { hc } from "hono/client";
 import { nanoid } from "nanoid";
-import type { ApiType } from "../../index.js";
-
-const client = hc<ApiType>("/");
+import { authFetch } from "../utils/api";
+import { getClient } from "../utils/client";
 
 interface Message {
   id: string;
@@ -55,9 +53,12 @@ export default function ChatPage() {
 
   const loadChatHistory = async () => {
     try {
+      const client = getClient();
       const response = await client.api.chat.history.$get();
-      const data = (await response.json()) as any;
-      setMessages(data.messages || []);
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        setMessages(data.messages || []);
+      }
     } catch (error) {
       console.error("Failed to load chat history:", error);
     }
@@ -65,7 +66,7 @@ export default function ChatPage() {
 
   const loadAvailableModels = async () => {
     try {
-      const response = await fetch("/v1/models");
+      const response = await authFetch("/v1/models");
       if (response.ok) {
         const data = await response.json();
         const uploadedModels = (data.models || [])
@@ -129,11 +130,8 @@ export default function ChatPage() {
       // Add the new user message
       messageArray.push({ role: "user", content: userMessage });
 
-      const response = await fetch("/v1/chat/completions", {
+      const response = await authFetch("/v1/chat/completions", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           model: selectedModel,
           messages: messageArray,

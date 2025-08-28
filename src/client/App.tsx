@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ChatPage from "./components/ChatPage";
 import ModelsPage from "./components/ModelsPage";
 import TracesPage from "./components/TracesPage";
+import AuthDialog from "./components/AuthDialog";
 
 type Page = "chat" | "models" | "traces";
 
@@ -244,6 +245,50 @@ const PremIcon = ({ className }: { className?: string }) => (
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("chat");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    // Check if we have a stored token
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      // Verify the token is still valid
+      fetch("/api/auth/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      })
+        .then((res) => {
+          if (res.ok) {
+            setIsAuthenticated(true);
+          } else {
+            localStorage.removeItem("authToken");
+          }
+        })
+        .finally(() => setCheckingAuth(false));
+    } else {
+      setCheckingAuth(false);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    setIsAuthenticated(false);
+  };
+
+  if (checkingAuth) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthDialog onAuthenticated={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="h-screen bg-stone-50 flex overflow-hidden">
@@ -343,19 +388,27 @@ export default function App() {
           </div>
         </nav>
 
-        <div className="h-[88px] border-t border-stone-200 bg-stone-50 flex items-center px-6">
-          <div className="w-full text-xs text-stone-500">
-            <div className="flex items-center justify-between mb-1">
-              <span>Version</span>
-              <span className="font-medium">1.0.0</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Status</span>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="font-medium">Running</span>
+        <div className="h-[88px] border-t border-stone-200 bg-stone-50 px-6">
+          <div className="flex flex-col justify-center h-full">
+            <div className="w-full text-xs text-stone-500">
+              <div className="flex items-center justify-between mb-1">
+                <span>Version</span>
+                <span className="font-medium">1.0.0</span>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <span>Status</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="font-medium">Running</span>
+                </div>
               </div>
             </div>
+            <button
+              onClick={handleLogout}
+              className="w-full py-1.5 px-3 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </div>

@@ -58,8 +58,14 @@ bun install
 ```bash
 # Create a .env file with:
 DATA_PATH=/path/to/your/data  # Where to store uploads, models, and database
-# Example: DATA_PATH=./premrunner-data
+AUTH_TOKEN=your-secret-token-here  # Authentication token (minimum 10 characters)
+
+# Example:
+# DATA_PATH=./premrunner-data
+# AUTH_TOKEN=my-secure-token-12345
 ```
+
+The AUTH_TOKEN can be any string with at least 10 characters. For better security, use a longer random string.
 
 ## Running the Application
 

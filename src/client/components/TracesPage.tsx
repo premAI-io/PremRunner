@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { hc } from "hono/client";
 import type { ApiType } from "../../index.js";
+import { authFetch } from "../utils/api";
 
 const client = hc<ApiType>("/");
 
@@ -34,7 +35,7 @@ export default function TracesPage() {
   const loadTraces = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/v1/traces?page=${page}&limit=20`);
+      const response = await authFetch(`/v1/traces?page=${page}&limit=20`);
       if (response.ok) {
         const data = await response.json();
         setTraces(data.traces || []);
@@ -50,7 +51,7 @@ export default function TracesPage() {
 
   const loadTraceDetail = async (traceId: string) => {
     try {
-      const response = await fetch(`/v1/traces/${traceId}`);
+      const response = await authFetch(`/v1/traces/${traceId}`);
       if (response.ok) {
         const data = await response.json();
         setSelectedTrace(data);
