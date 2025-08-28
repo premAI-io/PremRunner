@@ -20,3 +20,17 @@ export const models = sqliteTable("models", {
     () => new Date(),
   ),
 });
+
+export const traces = sqliteTable("traces", {
+  id: text("id").primaryKey(),
+  input: text("input").notNull(), // JSON string of the full conversation input
+  output: text("output").notNull(), // The assistant's response
+  model: text("model").notNull(),
+  promptTokens: integer("prompt_tokens"),
+  completionTokens: integer("completion_tokens"),
+  totalTokens: integer("total_tokens"),
+  duration: integer("duration"), // Time in milliseconds
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+});

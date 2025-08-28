@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db/index";
-import { messages, models } from "../db/schema";
+import { messages, models, traces } from "../db/schema";
 import { chatWithOllama, chatWithOllamaStream } from "./ollama";
 import { eq } from "drizzle-orm";
 import { existsSync, mkdirSync } from "fs";
@@ -86,6 +86,7 @@ const v1Api = new Hono()
         async start(controller) {
           const encoder = new TextEncoder();
           let fullResponse = "";
+          const startTime = Date.now();
 
           try {
             for await (const chunk of chatWithOllamaStream(model, prompt)) {
@@ -138,6 +139,19 @@ const v1Api = new Hono()
               role: "assistant",
               model,
             });
+
+            // Save trace
+            const duration = Date.now() - startTime;
+            await db.insert(traces).values({
+              id: crypto.randomUUID(),
+              input: JSON.stringify(body.messages),
+              output: fullResponse,
+              model,
+              promptTokens: Math.round(JSON.stringify(body.messages).length / 4),
+              completionTokens: Math.round(fullResponse.length / 4),
+              totalTokens: Math.round((JSON.stringify(body.messages).length + fullResponse.length) / 4),
+              duration,
+            });
           } catch (error) {
             console.error("Streaming error:", error);
             controller.error(error);
@@ -150,7 +164,9 @@ const v1Api = new Hono()
       return new Response(stream);
     } else {
       // Non-streaming response
+      const startTime = Date.now();
       const response = await chatWithOllama(model, prompt);
+      const duration = Date.now() - startTime;
 
       // Save assistant response to database
       const assistantMessageId = crypto.randomUUID();
@@ -159,6 +175,18 @@ const v1Api = new Hono()
         content: response,
         role: "assistant",
         model,
+      });
+
+      // Save trace
+      await db.insert(traces).values({
+        id: crypto.randomUUID(),
+        input: JSON.stringify(body.messages),
+        output: response,
+        model,
+        promptTokens: Math.round(JSON.stringify(body.messages).length / 4),
+        completionTokens: Math.round(response.length / 4),
+        totalTokens: Math.round((JSON.stringify(body.messages).length + response.length) / 4),
+        duration,
       });
 
       // Create OpenAI-compatible response
@@ -310,6 +338,79 @@ const v1Api = new Hono()
         {
           error: {
             message: "Failed to delete model",
+            type: "server_error",
+          },
+        },
+        500,
+      );
+    }
+  })
+  .get("/traces", async (c) => {
+    try {
+      const page = parseInt(c.req.query("page") || "1");
+      const limit = parseInt(c.req.query("limit") || "20");
+      const offset = (page - 1) * limit;
+
+      const allTraces = await db.select().from(traces).orderBy(traces.createdAt);
+      const paginatedTraces = allTraces.slice(offset, offset + limit);
+      
+      return c.json({
+        traces: paginatedTraces.map(t => ({
+          id: t.id,
+          model: t.model,
+          promptTokens: t.promptTokens,
+          completionTokens: t.completionTokens,
+          totalTokens: t.totalTokens,
+          duration: t.duration,
+          createdAt: t.createdAt?.toISOString(),
+        })),
+        total: allTraces.length,
+        page,
+        limit,
+        pages: Math.ceil(allTraces.length / limit),
+      });
+    } catch (error) {
+      console.error("Failed to list traces:", error);
+      return c.json(
+        {
+          error: {
+            message: "Failed to list traces",
+            type: "server_error",
+          },
+        },
+        500,
+      );
+    }
+  })
+  .get("/traces/:id", async (c) => {
+    try {
+      const traceId = c.req.param("id");
+      const trace = await db.select().from(traces).where(eq(traces.id, traceId)).limit(1);
+      
+      if (trace.length === 0) {
+        return c.json(
+          { error: { message: "Trace not found" } },
+          404,
+        );
+      }
+
+      return c.json({
+        id: trace[0].id,
+        input: trace[0].input,
+        output: trace[0].output,
+        model: trace[0].model,
+        promptTokens: trace[0].promptTokens,
+        completionTokens: trace[0].completionTokens,
+        totalTokens: trace[0].totalTokens,
+        duration: trace[0].duration,
+        createdAt: trace[0].createdAt?.toISOString(),
+      });
+    } catch (error) {
+      console.error("Failed to get trace:", error);
+      return c.json(
+        {
+          error: {
+            message: "Failed to get trace",
             type: "server_error",
           },
         },

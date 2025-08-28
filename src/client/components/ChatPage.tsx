@@ -16,7 +16,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [ollamaStatus, setOllamaStatus] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState("gemma3:270m");
   const [systemPrompt, setSystemPrompt] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -32,7 +31,6 @@ export default function ChatPage() {
 
   useEffect(() => {
     loadChatHistory();
-    checkOllamaStatus();
   }, []);
 
   useEffect(() => {
@@ -51,16 +49,6 @@ export default function ChatPage() {
       setMessages(data.messages || []);
     } catch (error) {
       console.error("Failed to load chat history:", error);
-    }
-  };
-
-  const checkOllamaStatus = async () => {
-    try {
-      const response = await client.api.ollama.status.$get();
-      const data = await response.json() as any;
-      setOllamaStatus(data.status);
-    } catch (error) {
-      setOllamaStatus("error");
     }
   };
 
