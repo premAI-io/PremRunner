@@ -8,7 +8,8 @@
     "format": "prettier --write .",
     "db:generate": "drizzle-kit generate && bun scripts/embed-migrations.ts",
     "db:push": "drizzle-kit push",
-    "studio": "drizzle-kit studio"
+    "studio": "drizzle-kit studio",
+    "build": "bun build ./src/index.ts --target=bun-darwin-arm64 --compile --outfile build/premrunnerMacArm64 && bun build ./src/index.ts --target=bun-linux-x64 --compile --outfile build/premrunnerLinuxX64"
   },
   "devDependencies": {
     "@types/bun": "latest",
