@@ -102,6 +102,29 @@ The API is OpenAI-compatible and accessible at:
 - `GET /v1/models` - List available models
 - `POST /v1/models/upload` - Upload new models
 
+## Troubleshooting
+
+### EC2/Ubuntu Setup
+
+If you encounter SQLite/better-sqlite3 errors on EC2:
+
+1. Make sure you're using Bun (not Node.js):
+```bash
+which bun  # Should show /home/ubuntu/.bun/bin/bun or similar
+```
+
+2. Clean and reinstall dependencies:
+```bash
+rm -rf node_modules bun.lockb
+bun install
+```
+
+3. Ensure DATA_PATH has write permissions:
+```bash
+mkdir -p ./premrunner-data
+chmod 755 ./premrunner-data
+```
+
 ## Features
 
 - Upload custom models with drag and drop in the browser
