@@ -53,7 +53,7 @@ const v1Api = new Hono()
     const model = body.model || "gemma3:270m";
     const isStream = body.stream === true;
 
-    // Get the last user message for the prompt
+    // Get the last message and ensure it's from user
     const lastMessage = body.messages[body.messages.length - 1];
     if (lastMessage.role !== "user") {
       return c.json(
@@ -62,13 +62,11 @@ const v1Api = new Hono()
       );
     }
 
-    const prompt = lastMessage.content;
-
     // Save user message to database
     const userMessageId = crypto.randomUUID();
     await db.insert(messages).values({
       id: userMessageId,
-      content: prompt,
+      content: lastMessage.content,
       role: "user",
       model,
     });
@@ -89,7 +87,7 @@ const v1Api = new Hono()
           const startTime = Date.now();
 
           try {
-            for await (const chunk of chatWithOllamaStream(model, prompt)) {
+            for await (const chunk of chatWithOllamaStream(model, body.messages)) {
               fullResponse += chunk;
 
               const streamChunk = {
@@ -165,7 +163,7 @@ const v1Api = new Hono()
     } else {
       // Non-streaming response
       const startTime = Date.now();
-      const response = await chatWithOllama(model, prompt);
+      const response = await chatWithOllama(model, body.messages);
       const duration = Date.now() - startTime;
 
       // Save assistant response to database
@@ -206,9 +204,9 @@ const v1Api = new Hono()
           },
         ],
         usage: {
-          prompt_tokens: prompt.length / 4, // Rough estimation
+          prompt_tokens: JSON.stringify(body.messages).length / 4, // Rough estimation
           completion_tokens: response.length / 4, // Rough estimation
-          total_tokens: (prompt.length + response.length) / 4,
+          total_tokens: (JSON.stringify(body.messages).length + response.length) / 4,
         },
       };
 

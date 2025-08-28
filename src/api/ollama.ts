@@ -137,57 +137,105 @@ export async function ensureModelDownloaded(
 
 export async function chatWithOllama(
   model: string,
-  message: string,
+  messages: Array<{ role: string; content: string }>,
 ): Promise<string> {
-  const ollamaPath = await getOllamaPath();
-
   try {
-    const proc = Bun.spawnSync([ollamaPath, "run", model, message], {
-      stdio: ["ignore", "pipe", "pipe"],
+    const response = await fetch("http://localhost:11434/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: false,
+      }),
     });
 
-    const stdout = new TextDecoder().decode(proc.stdout);
-    const stderr = new TextDecoder().decode(proc.stderr);
-
-    if (proc.exitCode === 0 && stdout.trim()) {
-      return stdout.trim();
-    } else {
-      throw new Error(`Ollama error: ${stderr || "No response"}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
     }
+
+    const data = await response.json();
+    if (!data.message?.content) {
+      console.error("Unexpected response format:", data);
+      throw new Error("No content in response");
+    }
+    return data.message.content;
   } catch (error) {
+    console.error("Ollama API error:", error);
     throw new Error(`Failed to chat with Ollama: ${error}`);
   }
 }
 
 export async function* chatWithOllamaStream(
   model: string,
-  message: string,
+  messages: Array<{ role: string; content: string }>,
 ): AsyncGenerator<string, void, unknown> {
-  const ollamaPath = await getOllamaPath();
-
   try {
-    const proc = Bun.spawn([ollamaPath, "run", model, message], {
-      stdio: ["ignore", "pipe", "pipe"],
+    const response = await fetch("http://localhost:11434/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+      }),
     });
 
-    const reader = proc.stdout.getReader();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("No response body");
+    }
+
     const decoder = new TextDecoder();
+    let buffer = "";
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        if (chunk.trim()) {
-          yield chunk;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const data = JSON.parse(line);
+              if (data.message?.content !== undefined && !data.done) {
+                // Yield only the incremental content
+                yield data.message.content;
+              }
+            } catch (e) {
+              console.error("Failed to parse JSON:", line, e);
+            }
+          }
+        }
+      }
+      
+      // Process any remaining buffer
+      if (buffer.trim()) {
+        try {
+          const data = JSON.parse(buffer);
+          if (data.message?.content !== undefined && !data.done) {
+            yield data.message.content;
+          }
+        } catch (e) {
+          // Ignore final parse errors
         }
       }
     } finally {
       reader.releaseLock();
     }
-
-    await proc.exited;
   } catch (error) {
     throw new Error(`Failed to stream chat with Ollama: ${error}`);
   }

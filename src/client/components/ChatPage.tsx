@@ -59,6 +59,9 @@ export default function ChatPage() {
     setInputMessage("");
     setLoading(true);
 
+    // Store the previous messages before adding new ones
+    const previousMessages = messages;
+
     const newUserMessage: Message = {
       id: crypto.randomUUID(),
       content: userMessage,
@@ -79,11 +82,20 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, assistantMessage]);
 
     try {
-      // Prepare messages array with system prompt if provided
+      // Prepare messages array with full conversation history
       const messageArray = [];
+      
+      // Add system prompt if provided
       if (systemPrompt.trim()) {
         messageArray.push({ role: "system", content: systemPrompt.trim() });
       }
+      
+      // Add all previous messages from the conversation (before the new ones)
+      previousMessages.forEach(msg => {
+        messageArray.push({ role: msg.role, content: msg.content });
+      });
+      
+      // Add the new user message
       messageArray.push({ role: "user", content: userMessage });
 
       const response = await fetch("/v1/chat/completions", {
