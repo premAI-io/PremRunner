@@ -197,9 +197,9 @@ export default function ChatPage() {
   return (
     <div className="flex h-full">
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white">
+      <div className="flex-1 flex flex-col bg-white overflow-hidden">
         {/* Header */}
-        <div className="h-[73px] border-b border-stone-200 bg-stone-50 px-6 flex items-center">
+        <div className="h-[73px] border-b border-stone-200 bg-stone-50 px-6 flex items-center flex-shrink-0">
           <div className="flex items-center justify-between w-full">
             <h2 className="text-lg font-semibold text-stone-950">Chat</h2>
           </div>
@@ -279,7 +279,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input Area */}
-        <div className="h-[88px] border-t border-stone-200 bg-stone-50 flex items-center">
+        <div className="h-[88px] border-t border-stone-200 bg-stone-50 flex items-center flex-shrink-0">
           <div className="max-w-[740px] mx-auto px-4 w-full">
             <div className="flex gap-3 items-center">
               <div className="flex-1 relative">
@@ -320,8 +320,8 @@ export default function ChatPage() {
       </div>
 
       {/* Right Sidebar - Settings */}
-      <div className="w-64 flex-shrink-0 bg-stone-50 border-l border-stone-200 flex flex-col">
-        <div className="h-[73px] border-b border-stone-200 bg-stone-50 px-6 flex items-center">
+      <div className="w-64 flex-shrink-0 bg-stone-50 border-l border-stone-200 flex flex-col overflow-hidden">
+        <div className="h-[73px] border-b border-stone-200 bg-stone-50 px-6 flex items-center flex-shrink-0">
           <h3 className="text-lg font-semibold text-stone-950">Settings</h3>
         </div>
 

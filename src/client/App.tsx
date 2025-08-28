@@ -78,7 +78,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("chat");
 
   return (
-    <div className="min-h-screen bg-stone-50 flex">
+    <div className="h-screen bg-stone-50 flex overflow-hidden">
       {/* Sidebar Navigation */}
       <div className="w-64 flex-shrink-0 bg-stone-50 border-r border-stone-200 flex flex-col">
         <div className="h-[73px] border-b border-stone-200 bg-stone-50 flex items-center px-6">
