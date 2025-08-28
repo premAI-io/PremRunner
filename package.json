@@ -4,10 +4,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --hot src/index.ts",
     "format": "prettier --write .",
     "db:push": "drizzle-kit push",
     "studio": "drizzle-kit studio",
+    "dev": "bun run db:push && bun --hot src/index.ts",
     "start": "bun run db:push && bun src/index.ts"
   },
   "devDependencies": {

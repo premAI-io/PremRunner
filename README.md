@@ -1,8 +1,100 @@
 # PremRunner
 
-This is website/api that wraps Ollama in order to allow a way to upload custom models with drag and drop in the browser and call them from the browser.
+A web application and API that wraps Ollama to enable browser-based model uploads and interactions. Compatible with Prem SDK.
 
-It will be compatible with Prem sdk.
+## System Requirements
+
+- **macOS** (Apple Silicon or Intel)
+- **Ubuntu** (20.04 or later)
+
+## Prerequisites
+
+Before running PremRunner, you need to install the following:
+
+### 1. Install Bun
+
+```bash
+# macOS/Ubuntu
+curl -fsSL https://bun.sh/install | bash
+```
+
+### 2. Install Ollama
+
+```bash
+# macOS
+brew install ollama
+
+# Ubuntu
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+### 3. Install unzip (if not already installed)
+
+```bash
+# macOS (usually pre-installed)
+# If needed: brew install unzip
+
+# Ubuntu
+sudo apt-get install unzip
+```
+
+## Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/premAI-io/PremRunner.git
+cd PremRunner
+```
+
+2. Install dependencies:
+
+```bash
+bun install
+```
+
+3. Set up environment variables:
+
+```bash
+# Create a .env file with:
+DATA_PATH=/path/to/your/data  # Where to store uploads, models, and database
+# Example: DATA_PATH=./premrunner-data
+```
+
+## Running the Application
+
+Start the server:
+
+```bash
+bun start
+```
+
+This command will:
+
+1. Push database schema changes
+2. Create the DATA_PATH directory and subdirectories if they don't exist
+3. Start Ollama automatically if it's not running
+4. Launch the web server on http://localhost:3001
+
+For development with hot reload:
+
+```bash
+bun run dev
+```
+
+## Usage
+
+Once running, navigate to http://localhost:3001 in your browser to:
+
+- Chat with models via the Chat interface
+- Upload and manage custom models
+- View API usage traces
+
+The API is OpenAI-compatible and accessible at:
+
+- `POST /v1/chat/completions` - Chat completions endpoint
+- `GET /v1/models` - List available models
+- `POST /v1/models/upload` - Upload new models
 
 ## Features
 
