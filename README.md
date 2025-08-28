@@ -18,7 +18,18 @@ Before running PremRunner, you need to install the following:
 curl -fsSL https://bun.sh/install | bash
 ```
 
-### 2. Install Ollama
+### 2. Install Node.js (required for database migrations)
+
+```bash
+# macOS
+brew install node
+
+# Ubuntu
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+### 3. Install Ollama
 
 ```bash
 # macOS
@@ -28,7 +39,7 @@ brew install ollama
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
-### 3. Install unzip (if not already installed)
+### 4. Install unzip (if not already installed)
 
 ```bash
 # macOS (usually pre-installed)
@@ -104,25 +115,21 @@ The API is OpenAI-compatible and accessible at:
 
 ## Troubleshooting
 
-### EC2/Ubuntu Setup
+### Database Migration Errors
 
-If you encounter SQLite/better-sqlite3 errors on EC2:
+If you encounter errors when running `bun start` related to drizzle-kit or better-sqlite3:
 
-1. Make sure you're using Bun (not Node.js):
+1. **Ensure Node.js is installed** (drizzle-kit requires Node.js):
 ```bash
-which bun  # Should show /home/ubuntu/.bun/bin/bun or similar
+node --version  # Should show v18 or higher
 ```
 
-2. Clean and reinstall dependencies:
+If Node.js is missing or outdated, install it as shown in the prerequisites.
+
+2. **Clean and reinstall if needed:**
 ```bash
 rm -rf node_modules bun.lockb
 bun install
-```
-
-3. Ensure DATA_PATH has write permissions:
-```bash
-mkdir -p ./premrunner-data
-chmod 755 ./premrunner-data
 ```
 
 ## Features
