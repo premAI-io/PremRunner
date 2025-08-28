@@ -12,12 +12,20 @@ interface Message {
   createdAt: string;
 }
 
+interface AvailableModel {
+  id: string;
+  name: string;
+  alias: string;
+  imported: boolean;
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemma3:270m");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -31,6 +39,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     loadChatHistory();
+    loadAvailableModels();
   }, []);
 
   useEffect(() => {
@@ -49,6 +58,26 @@ export default function ChatPage() {
       setMessages(data.messages || []);
     } catch (error) {
       console.error("Failed to load chat history:", error);
+    }
+  };
+
+  const loadAvailableModels = async () => {
+    try {
+      const response = await fetch("/v1/models");
+      if (response.ok) {
+        const data = await response.json();
+        const uploadedModels = (data.models || [])
+          .filter((m: any) => m.active)
+          .map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            alias: m.name.toLowerCase().replace(/[^a-z0-9]/g, "-"), // Use sanitized name as alias
+            imported: true,
+          }));
+        setAvailableModels(uploadedModels);
+      }
+    } catch (error) {
+      console.error("Failed to load models:", error);
     }
   };
 
@@ -338,7 +367,12 @@ export default function ChatPage() {
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white text-stone-950 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
-                <option value="gemma3:270m">gemma3:270m</option>
+                <option value="gemma3:270m">gemma3:270m (Default)</option>
+                {availableModels.map((model) => (
+                  <option key={model.id} value={model.alias}>
+                    {model.name} (Finetuned)
+                  </option>
+                ))}
               </select>
             </div>
 

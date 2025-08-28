@@ -30,7 +30,7 @@ async function startServer() {
     process.exit(1);
   }
 
-  serve({
+  const server = serve({
     port: 3001,
     fetch: app.fetch,
     routes: {
@@ -41,6 +41,8 @@ async function startServer() {
     },
     maxRequestBodySize: 10 * 1024 * 1024 * 1024, // 10GB limit
   });
+  
+  console.log(`📊 Max request body size: ${(10 * 1024 * 1024 * 1024 / 1024 / 1024 / 1024).toFixed(0)} GB`);
 
   console.log("✅ Server running on http://localhost:3001");
 }

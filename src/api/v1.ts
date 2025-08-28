@@ -5,6 +5,8 @@ import { chatWithOllama, chatWithOllamaStream } from "./ollama";
 import { eq } from "drizzle-orm";
 import { existsSync, mkdirSync } from "fs";
 import { join } from "path";
+import { importModelToOllama, deleteModelFromOllama } from "./import-model";
+import chunkedUpload from "./chunked-upload";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -42,6 +44,7 @@ interface ChatCompletionResponse {
 }
 
 const v1Api = new Hono()
+  .route("/chunked-upload", chunkedUpload)
   .post("/chat/completions", async (c) => {
   try {
     const body: ChatCompletionRequest = await c.req.json();
@@ -266,9 +269,19 @@ const v1Api = new Hono()
   })
   .post("/models/upload", async (c) => {
     try {
+      console.log(`📤 Upload request received`);
+      const contentLength = c.req.header("content-length");
+      console.log(`📊 Content-Length header: ${contentLength}`);
+      if (contentLength) {
+        const sizeGB = parseInt(contentLength) / 1024 / 1024 / 1024;
+        console.log(`📊 Expected file size: ${sizeGB.toFixed(2)} GB`);
+      }
+      
       const formData = await c.req.formData();
       const file = formData.get("file") as File;
-      const name = formData.get("name") as string;
+      let name = formData.get("name") as string;
+      
+      console.log(`📊 Received file size: ${file ? (file.size / 1024 / 1024 / 1024).toFixed(2) : 'unknown'} GB`);
 
       if (!file || !name) {
         return c.json(
@@ -276,6 +289,15 @@ const v1Api = new Hono()
           400,
         );
       }
+      
+      // Clean up the model name - remove any non-ASCII characters
+      name = name.replace(/[^\x00-\x7F]/g, "").trim();
+      if (!name) {
+        name = `model_${Date.now()}`; // Fallback if name becomes empty
+      }
+      
+      console.log(`📝 Original file name: ${file.name}`);
+      console.log(`📝 Cleaned model name: ${name}`);
 
       // Create uploads directory if it doesn't exist
       const uploadsDir = join(process.cwd(), "uploads");
@@ -287,20 +309,61 @@ const v1Api = new Hono()
       const modelId = crypto.randomUUID();
       const filePath = join(uploadsDir, `${modelId}.zip`);
       const arrayBuffer = await file.arrayBuffer();
+      
+      console.log(`📁 Saving uploaded file for model: ${name}`);
+      console.log(`📊 File size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`📍 Save path: ${filePath}`);
+      
       await Bun.write(filePath, arrayBuffer);
+      
+      // Verify the file was saved correctly
+      const savedFile = Bun.file(filePath);
+      const savedSize = savedFile.size;
+      console.log(`✅ File saved successfully, size: ${(savedSize / 1024 / 1024).toFixed(2)} MB`);
+      
+      if (savedSize !== file.size) {
+        console.error(`⚠️ Warning: Saved file size (${savedSize}) doesn't match original (${file.size})`);
+      }
+      
+      // Check first few bytes to see what type of file this is
+      const headerBytes = new Uint8Array(arrayBuffer.slice(0, 4));
+      const header = Array.from(headerBytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
+      console.log(`🔍 File header (first 4 bytes): ${header}`);
+      
+      // ZIP files should start with PK (50 4B)
+      if (headerBytes[0] === 0x50 && headerBytes[1] === 0x4B) {
+        console.log(`✅ File has valid ZIP header (PK)`);
+        // Check ZIP version
+        if (headerBytes[2] === 0x07 || headerBytes[2] === 0x08) {
+          console.log(`⚠️ This appears to be a ZIP64 or spanned archive`);
+        }
+      } else {
+        console.error(`❌ File does not have ZIP header. Expected 50 4B, got ${header}`);
+      }
 
       // Save model info to database
+      const modelAlias = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
       await db.insert(models).values({
         id: modelId,
         name: name,
-        alias: name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+        alias: modelAlias,
         size: file.size,
         downloaded: false,
       });
 
+      // Start import process in background
+      importModelToOllama(modelId, modelAlias, filePath).catch((error) => {
+        console.error(`Failed to import model ${name}:`, error);
+        // Update database to reflect failure
+        db.update(models)
+          .set({ downloaded: false })
+          .where(eq(models.id, modelId))
+          .catch(console.error);
+      });
+
       return c.json({
         id: modelId,
-        message: "Model uploaded successfully",
+        message: "Model uploaded successfully, import started",
         path: filePath,
       });
     } catch (error) {
@@ -320,13 +383,26 @@ const v1Api = new Hono()
     try {
       const modelId = c.req.param("id");
       
+      // Get model info first
+      const model = await db.select().from(models).where(eq(models.id, modelId)).limit(1);
+      
+      if (model.length > 0 && model[0].downloaded) {
+        // Delete from Ollama if it was imported
+        await deleteModelFromOllama(model[0].alias);
+      }
+      
       // Delete from database
       await db.delete(models).where(eq(models.id, modelId));
       
-      // Delete file if it exists
-      const filePath = join(process.cwd(), "uploads", `${modelId}.zip`);
-      if (existsSync(filePath)) {
-        await Bun.$`rm -f ${filePath}`;
+      // Delete files
+      const zipPath = join(process.cwd(), "uploads", `${modelId}.zip`);
+      const extractPath = join(process.cwd(), "models", modelId);
+      
+      if (existsSync(zipPath)) {
+        await Bun.$`rm -f ${zipPath}`;
+      }
+      if (existsSync(extractPath)) {
+        await Bun.$`rm -rf ${extractPath}`;
       }
 
       return c.json({ message: "Model deleted successfully" });
@@ -339,6 +415,69 @@ const v1Api = new Hono()
             type: "server_error",
           },
         },
+        500,
+      );
+    }
+  })
+  .post("/models/import", async (c) => {
+    try {
+      const formData = await c.req.formData();
+      const modelId = formData.get("modelId") as string;
+      const modelName = formData.get("modelName") as string;
+      const filePath = formData.get("filePath") as string;
+      
+      if (!modelId || !modelName || !filePath) {
+        return c.json({ error: { message: "Missing required fields" } }, 400);
+      }
+      
+      // Save model info to database
+      const modelAlias = modelName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+      await db.insert(models).values({
+        id: modelId,
+        name: modelName,
+        alias: modelAlias,
+        size: Bun.file(filePath).size,
+        downloaded: false,
+      });
+      
+      // Start import process in background
+      importModelToOllama(modelId, modelAlias, filePath).catch((error) => {
+        console.error(`Failed to import model ${modelName}:`, error);
+        db.update(models)
+          .set({ downloaded: false })
+          .where(eq(models.id, modelId))
+          .catch(console.error);
+      });
+      
+      return c.json({
+        id: modelId,
+        message: "Model import started",
+      });
+    } catch (error) {
+      console.error("Import error:", error);
+      return c.json({ error: { message: "Failed to start import" } }, 500);
+    }
+  })
+  .get("/models/:id/status", async (c) => {
+    try {
+      const modelId = c.req.param("id");
+      const model = await db.select().from(models).where(eq(models.id, modelId)).limit(1);
+      
+      if (model.length === 0) {
+        return c.json({ error: { message: "Model not found" } }, 404);
+      }
+      
+      return c.json({
+        id: model[0].id,
+        name: model[0].name,
+        alias: model[0].alias,
+        imported: model[0].downloaded || false,
+        status: model[0].downloaded ? "ready" : "importing",
+      });
+    } catch (error) {
+      console.error("Failed to get model status:", error);
+      return c.json(
+        { error: { message: "Failed to get model status", type: "server_error" } },
         500,
       );
     }

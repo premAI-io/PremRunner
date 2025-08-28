@@ -3,9 +3,12 @@ import { useState, useEffect, useRef } from "react";
 interface Model {
   id: string;
   name: string;
+  alias?: string;
   size: number;
   uploadedAt: string;
   active: boolean;
+  imported?: boolean;
+  status?: 'importing' | 'ready' | 'failed';
 }
 
 export default function ModelsPage() {
@@ -20,6 +23,9 @@ export default function ModelsPage() {
 
   useEffect(() => {
     loadModels();
+    // Poll for import status updates every 5 seconds
+    const interval = setInterval(loadModels, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadModels = async () => {
@@ -61,14 +67,98 @@ export default function ModelsPage() {
   };
 
   const handleFileSelect = (file: File) => {
-    if (!file.name.endsWith('.zip')) {
-      alert('Please upload a ZIP file containing the model weights');
+    console.log('File selected:', file.name, 'Type:', file.type, 'Size:', file.size);
+    console.log('File size in MB:', (file.size / 1024 / 1024).toFixed(2));
+    console.log('File size in GB:', (file.size / 1024 / 1024 / 1024).toFixed(2));
+    
+    // Check file extension and MIME type
+    const isZip = file.name.toLowerCase().endsWith('.zip') || 
+                  file.type === 'application/zip' || 
+                  file.type === 'application/x-zip-compressed';
+    
+    if (!isZip) {
+      alert(`Please upload a ZIP file containing the model weights.\nYou selected: ${file.name} (type: ${file.type || 'unknown'})`);
       return;
+    }
+    
+    // Warn if file is suspiciously small
+    if (file.size < 1000) {
+      if (!confirm(`This file seems very small (${file.size} bytes). Are you sure it contains a valid model?`)) {
+        return;
+      }
     }
     
     setSelectedFile(file);
     setModelName(file.name.replace('.zip', ''));
     setShowNameDialog(true);
+  };
+
+  const uploadChunked = async (file: File, modelName: string) => {
+    const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    
+    console.log(`📦 Starting chunked upload: ${totalChunks} chunks of ${CHUNK_SIZE / 1024 / 1024}MB`);
+    
+    // Step 1: Initialize chunked upload
+    const initResponse = await fetch('/v1/chunked-upload/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileSize: file.size,
+        modelName: modelName
+      })
+    });
+    
+    if (!initResponse.ok) {
+      throw new Error('Failed to initialize upload');
+    }
+    
+    const { modelId } = await initResponse.json();
+    console.log(`📝 Upload ID: ${modelId}`);
+    
+    // Step 2: Upload chunks
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      
+      const formData = new FormData();
+      formData.append('chunk', chunk);
+      formData.append('modelId', modelId);
+      formData.append('chunkIndex', i.toString());
+      formData.append('totalChunks', totalChunks.toString());
+      
+      const chunkResponse = await fetch('/v1/chunked-upload/chunk', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!chunkResponse.ok) {
+        throw new Error(`Failed to upload chunk ${i + 1}/${totalChunks}`);
+      }
+      
+      const progress = ((i + 1) / totalChunks) * 100;
+      setUploadProgress(Math.round(progress));
+      console.log(`📊 Uploaded chunk ${i + 1}/${totalChunks} (${progress.toFixed(1)}%)`);
+    }
+    
+    // Step 3: Complete upload
+    const completeResponse = await fetch('/v1/chunked-upload/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        modelId,
+        modelName,
+        totalChunks
+      })
+    });
+    
+    if (!completeResponse.ok) {
+      throw new Error('Failed to complete upload');
+    }
+    
+    return await completeResponse.json();
   };
 
   const handleUpload = async () => {
@@ -81,48 +171,100 @@ export default function ModelsPage() {
     setUploading(true);
     setUploadProgress(0);
 
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('name', modelName.trim());
-
+    console.log('Starting upload of file:', selectedFile.name);
+    console.log('File size:', selectedFile.size, 'bytes');
+    console.log('File size (GB):', (selectedFile.size / 1024 / 1024 / 1024).toFixed(2), 'GB');
+    
     try {
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percentComplete = (e.loaded / e.total) * 100;
-          setUploadProgress(Math.round(percentComplete));
+      // Use chunked upload for files over 100MB
+      if (selectedFile.size > 100 * 1024 * 1024) {
+        console.log('🔄 Using chunked upload for large file');
+        const result = await uploadChunked(selectedFile, modelName.trim());
+        
+        // Now trigger the model import
+        const formData = new FormData();
+        formData.append('modelId', result.modelId);
+        formData.append('modelName', modelName.trim());
+        formData.append('filePath', result.path);
+        
+        const importResponse = await fetch('/v1/models/import', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (importResponse.ok) {
+          const { id } = await importResponse.json();
+          pollModelStatus(id || result.modelId);
         }
-      });
+        
+        setTimeout(() => {
+          setUploading(false);
+          setUploadProgress(0);
+          setSelectedFile(null);
+          setModelName("");
+          loadModels();
+        }, 1000);
+      } else {
+        // Use regular upload for small files
+        console.log('📤 Using regular upload for small file');
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('name', modelName.trim());
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 200) {
-          setUploadProgress(100);
-          setTimeout(() => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = (e.loaded / e.total) * 100;
+            setUploadProgress(Math.round(percentComplete));
+            console.log(`Upload progress: ${e.loaded} / ${e.total} bytes (${percentComplete.toFixed(1)}%)`);
+          }
+        });
+
+        xhr.addEventListener('load', async () => {
+          console.log('Upload completed with status:', xhr.status);
+          console.log('Response:', xhr.responseText.substring(0, 200));
+          
+          if (xhr.status === 200) {
+            setUploadProgress(100);
+            
+            // Parse response to get model ID
+            try {
+              const response = JSON.parse(xhr.responseText);
+              if (response.id) {
+                // Start polling for import status
+                pollModelStatus(response.id);
+              }
+            } catch (e) {
+              console.error('Failed to parse upload response:', e);
+            }
+            
+            setTimeout(() => {
+              setUploading(false);
+              setUploadProgress(0);
+              setSelectedFile(null);
+              setModelName("");
+              loadModels();
+            }, 1000);
+          } else {
+            alert('Upload failed');
             setUploading(false);
             setUploadProgress(0);
-            setSelectedFile(null);
-            setModelName("");
-            loadModels();
-          }, 1000);
-        } else {
+          }
+        });
+
+        xhr.addEventListener('error', () => {
           alert('Upload failed');
           setUploading(false);
           setUploadProgress(0);
-        }
-      });
+        });
 
-      xhr.addEventListener('error', () => {
-        alert('Upload failed');
-        setUploading(false);
-        setUploadProgress(0);
-      });
-
-      xhr.open('POST', '/v1/models/upload');
-      xhr.send(formData);
+        xhr.open('POST', '/v1/models/upload');
+        xhr.send(formData);
+      }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Failed to upload model');
+      alert('Failed to upload model: ' + error);
       setUploading(false);
       setUploadProgress(0);
     }
@@ -152,6 +294,35 @@ export default function ModelsPage() {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const pollModelStatus = async (modelId: string) => {
+    let attempts = 0;
+    const maxAttempts = 60; // Poll for up to 5 minutes (60 * 5 seconds)
+    
+    const checkStatus = async () => {
+      try {
+        const response = await fetch(`/v1/models/${modelId}/status`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.imported) {
+            // Model is ready, refresh the list
+            loadModels();
+            return true;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check model status:', error);
+      }
+      
+      attempts++;
+      if (attempts < maxAttempts) {
+        setTimeout(checkStatus, 5000); // Check again in 5 seconds
+      }
+      return false;
+    };
+    
+    checkStatus();
   };
 
   return (
@@ -269,10 +440,17 @@ export default function ModelsPage() {
                           {formatFileSize(model.size)}
                         </p>
                       </div>
-                      {model.active && (
+                      {model.active ? (
                         <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full font-medium">
-                          Active
+                          Ready
                         </span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                          <span className="px-2 py-0.5 text-xs text-amber-700 font-medium">
+                            Importing...
+                          </span>
+                        </div>
                       )}
                     </div>
                     
