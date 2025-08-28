@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { db } from "../db/index";
-import { messages } from "../db/schema";
+import { messages, models } from "../db/schema";
 import { chatWithOllama, chatWithOllamaStream } from "./ollama";
+import { eq } from "drizzle-orm";
+import { existsSync, mkdirSync } from "fs";
+import { join } from "path";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -38,7 +41,8 @@ interface ChatCompletionResponse {
   };
 }
 
-const v1Api = new Hono().post("/chat/completions", async (c) => {
+const v1Api = new Hono()
+  .post("/chat/completions", async (c) => {
   try {
     const body: ChatCompletionRequest = await c.req.json();
 
@@ -194,6 +198,124 @@ const v1Api = new Hono().post("/chat/completions", async (c) => {
       500,
     );
   }
-});
+})
+  .get("/models", async (c) => {
+    try {
+      const modelList = await db.select().from(models);
+      
+      // Format response to be OpenAI-compatible
+      const formattedModels = modelList.map(model => ({
+        id: model.id,
+        object: "model",
+        created: model.createdAt ? Math.floor(model.createdAt.getTime() / 1000) : Date.now() / 1000,
+        owned_by: "user",
+        permission: [],
+        root: model.name,
+        parent: null,
+      }));
+
+      return c.json({
+        object: "list",
+        data: formattedModels,
+        models: modelList.map(m => ({
+          id: m.id,
+          name: m.name,
+          size: m.size,
+          uploadedAt: m.createdAt?.toISOString(),
+          active: m.downloaded || false,
+        })),
+      });
+    } catch (error) {
+      console.error("Failed to list models:", error);
+      return c.json(
+        {
+          error: {
+            message: "Failed to list models",
+            type: "server_error",
+          },
+        },
+        500,
+      );
+    }
+  })
+  .post("/models/upload", async (c) => {
+    try {
+      const formData = await c.req.formData();
+      const file = formData.get("file") as File;
+      const name = formData.get("name") as string;
+
+      if (!file || !name) {
+        return c.json(
+          { error: { message: "File and name are required" } },
+          400,
+        );
+      }
+
+      // Create uploads directory if it doesn't exist
+      const uploadsDir = join(process.cwd(), "uploads");
+      if (!existsSync(uploadsDir)) {
+        mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      // Save the file
+      const modelId = crypto.randomUUID();
+      const filePath = join(uploadsDir, `${modelId}.zip`);
+      const arrayBuffer = await file.arrayBuffer();
+      await Bun.write(filePath, arrayBuffer);
+
+      // Save model info to database
+      await db.insert(models).values({
+        id: modelId,
+        name: name,
+        alias: name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+        size: file.size,
+        downloaded: false,
+      });
+
+      return c.json({
+        id: modelId,
+        message: "Model uploaded successfully",
+        path: filePath,
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      return c.json(
+        {
+          error: {
+            message: "Failed to upload model",
+            type: "server_error",
+          },
+        },
+        500,
+      );
+    }
+  })
+  .delete("/models/:id", async (c) => {
+    try {
+      const modelId = c.req.param("id");
+      
+      // Delete from database
+      await db.delete(models).where(eq(models.id, modelId));
+      
+      // Delete file if it exists
+      const filePath = join(process.cwd(), "uploads", `${modelId}.zip`);
+      if (existsSync(filePath)) {
+        await Bun.$`rm -f ${filePath}`;
+      }
+
+      return c.json({ message: "Model deleted successfully" });
+    } catch (error) {
+      console.error("Delete error:", error);
+      return c.json(
+        {
+          error: {
+            message: "Failed to delete model",
+            type: "server_error",
+          },
+        },
+        500,
+      );
+    }
+  });
 
 export default v1Api;

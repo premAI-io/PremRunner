@@ -39,6 +39,7 @@ async function startServer() {
     development: {
       hmr: true,
     },
+    maxRequestBodySize: 10 * 1024 * 1024 * 1024, // 10GB limit
   });
 
   console.log("✅ Server running on http://localhost:3001");
