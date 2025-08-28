@@ -24,6 +24,7 @@
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.5",
     "hono": "^4.9.4",
+    "nanoid": "^5.1.5",
     "prettier": "^3.6.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

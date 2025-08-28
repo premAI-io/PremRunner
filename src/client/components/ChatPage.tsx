@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { hc } from "hono/client";
+import { nanoid } from "nanoid";
 import type { ApiType } from "../../index.js";
 
 const client = hc<ApiType>("/");
@@ -92,7 +93,7 @@ export default function ChatPage() {
     const previousMessages = messages;
 
     const newUserMessage: Message = {
-      id: crypto.randomUUID(),
+      id: nanoid(),
       content: userMessage,
       role: "user",
       model: selectedModel,
@@ -102,7 +103,7 @@ export default function ChatPage() {
 
     // Always use streaming
     const assistantMessage: Message = {
-      id: crypto.randomUUID(),
+      id: nanoid(),
       content: "",
       role: "assistant",
       model: selectedModel,

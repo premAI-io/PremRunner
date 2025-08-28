@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { nanoid } from "nanoid";
 import { db } from "../db/index";
 import { messages } from "../db/schema";
 import { chatWithOllama } from "./ollama";
@@ -13,7 +14,7 @@ const chatApi = new Hono()
       }
 
       // Save user message to database
-      const userMessageId = crypto.randomUUID();
+      const userMessageId = nanoid();
       await db.insert(messages).values({
         id: userMessageId,
         content: message,
@@ -25,7 +26,7 @@ const chatApi = new Hono()
       const response = await chatWithOllama(model, message);
 
       // Save assistant response to database
-      const assistantMessageId = crypto.randomUUID();
+      const assistantMessageId = nanoid();
       await db.insert(messages).values({
         id: assistantMessageId,
         content: response,

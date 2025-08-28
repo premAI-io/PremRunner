@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { nanoid } from "nanoid";
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
 
@@ -15,7 +16,7 @@ const chunkedUpload = new Hono()
     const body = await c.req.json();
     const { fileName, fileSize, modelName } = body;
     
-    const modelId = crypto.randomUUID();
+    const modelId = nanoid();
     const tempDir = join(process.cwd(), "temp-uploads", modelId);
     
     if (!existsSync(tempDir)) {

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { nanoid } from "nanoid";
 import { db } from "../db/index";
 import { messages, models, traces } from "../db/schema";
 import { chatWithOllama, chatWithOllamaStream } from "./ollama";
@@ -66,7 +67,7 @@ const v1Api = new Hono()
     }
 
     // Save user message to database
-    const userMessageId = crypto.randomUUID();
+    const userMessageId = nanoid();
     await db.insert(messages).values({
       id: userMessageId,
       content: lastMessage.content,
@@ -74,7 +75,7 @@ const v1Api = new Hono()
       model,
     });
 
-    const chatId = `chatcmpl-${crypto.randomUUID()}`;
+    const chatId = `chatcmpl-${nanoid()}`;
     const created = Math.floor(Date.now() / 1000);
 
     if (isStream) {
@@ -133,7 +134,7 @@ const v1Api = new Hono()
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 
             // Save assistant response to database
-            const assistantMessageId = crypto.randomUUID();
+            const assistantMessageId = nanoid();
             await db.insert(messages).values({
               id: assistantMessageId,
               content: fullResponse,
@@ -144,7 +145,7 @@ const v1Api = new Hono()
             // Save trace
             const duration = Date.now() - startTime;
             await db.insert(traces).values({
-              id: crypto.randomUUID(),
+              id: nanoid(),
               input: JSON.stringify(body.messages),
               output: fullResponse,
               model,
@@ -170,7 +171,7 @@ const v1Api = new Hono()
       const duration = Date.now() - startTime;
 
       // Save assistant response to database
-      const assistantMessageId = crypto.randomUUID();
+      const assistantMessageId = nanoid();
       await db.insert(messages).values({
         id: assistantMessageId,
         content: response,
@@ -180,7 +181,7 @@ const v1Api = new Hono()
 
       // Save trace
       await db.insert(traces).values({
-        id: crypto.randomUUID(),
+        id: nanoid(),
         input: JSON.stringify(body.messages),
         output: response,
         model,
@@ -306,7 +307,7 @@ const v1Api = new Hono()
       }
 
       // Save the file
-      const modelId = crypto.randomUUID();
+      const modelId = nanoid();
       const filePath = join(uploadsDir, `${modelId}.zip`);
       const arrayBuffer = await file.arrayBuffer();
       
