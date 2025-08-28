@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { nanoid } from "nanoid";
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
+import config from "../config";
 
 interface ChunkInfo {
   modelId: string;
@@ -17,7 +18,7 @@ const chunkedUpload = new Hono()
     const { fileName, fileSize, modelName } = body;
 
     const modelId = nanoid();
-    const tempDir = join(process.cwd(), "temp-uploads", modelId);
+    const tempDir = join(config.DATA_PATH, "temp-uploads", modelId);
 
     if (!existsSync(tempDir)) {
       mkdirSync(tempDir, { recursive: true });
@@ -44,7 +45,7 @@ const chunkedUpload = new Hono()
       return c.json({ error: "Missing chunk or modelId" }, 400);
     }
 
-    const tempDir = join(process.cwd(), "temp-uploads", modelId);
+    const tempDir = join(config.DATA_PATH, "temp-uploads", modelId);
     const chunkPath = join(tempDir, `chunk_${chunkIndex}`);
 
     const arrayBuffer = await chunk.arrayBuffer();
@@ -65,13 +66,9 @@ const chunkedUpload = new Hono()
     const body = await c.req.json();
     const { modelId, modelName, totalChunks } = body;
 
-    const tempDir = join(process.cwd(), "temp-uploads", modelId);
-    const uploadsDir = join(process.cwd(), "uploads");
+    const tempDir = join(config.DATA_PATH, "temp-uploads", modelId);
+    const uploadsDir = join(config.DATA_PATH, "uploads");
     const finalPath = join(uploadsDir, `${modelId}.zip`);
-
-    if (!existsSync(uploadsDir)) {
-      mkdirSync(uploadsDir, { recursive: true });
-    }
 
     console.log(`🔄 Assembling ${totalChunks} chunks into final file`);
 

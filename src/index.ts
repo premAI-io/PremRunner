@@ -1,9 +1,12 @@
 import { Hono } from "hono";
 import { serve } from "bun";
+import { mkdirSync, existsSync } from "fs";
+import { join } from "path";
 import index from "./client/index.html";
 import { ensureOllamaRunning, checkOllamaStatus } from "./api/ollama";
 import chatApi from "./api/chat";
 import v1Api from "./api/v1";
+import config from "./config";
 
 const app = new Hono()
   .get("/api/hello", (c) => {
@@ -17,8 +20,25 @@ const app = new Hono()
   .route("/v1", v1Api);
 
 async function startServer() {
-  // Ensure Ollama is running before starting the server
+  // Ensure DATA_PATH exists with all required subdirectories
   console.log("🚀 Starting PremRunner...");
+  console.log(`📁 Data path: ${config.DATA_PATH}`);
+
+  // Create main data directory if it doesn't exist
+  if (!existsSync(config.DATA_PATH)) {
+    mkdirSync(config.DATA_PATH, { recursive: true });
+    console.log(`✅ Created data directory: ${config.DATA_PATH}`);
+  }
+
+  // Create subdirectories
+  const subdirs = ["uploads", "temp-uploads", "models"];
+  for (const dir of subdirs) {
+    const fullPath = join(config.DATA_PATH, dir);
+    if (!existsSync(fullPath)) {
+      mkdirSync(fullPath, { recursive: true });
+      console.log(`✅ Created subdirectory: ${fullPath}`);
+    }
+  }
 
   const ollamaReady = await ensureOllamaRunning();
   if (!ollamaReady) {

@@ -8,6 +8,7 @@ import { existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { importModelToOllama, deleteModelFromOllama } from "./import-model";
 import chunkedUpload from "./chunked-upload";
+import config from "../config";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -315,11 +316,8 @@ const v1Api = new Hono()
       console.log(`📝 Original file name: ${file.name}`);
       console.log(`📝 Cleaned model name: ${name}`);
 
-      // Create uploads directory if it doesn't exist
-      const uploadsDir = join(process.cwd(), "uploads");
-      if (!existsSync(uploadsDir)) {
-        mkdirSync(uploadsDir, { recursive: true });
-      }
+      // Use DATA_PATH for uploads directory
+      const uploadsDir = join(config.DATA_PATH, "uploads");
 
       // Save the file
       const modelId = nanoid();
@@ -422,9 +420,9 @@ const v1Api = new Hono()
       // Delete from database
       await db.delete(models).where(eq(models.id, modelId));
 
-      // Delete files
-      const zipPath = join(process.cwd(), "uploads", `${modelId}.zip`);
-      const extractPath = join(process.cwd(), "models", modelId);
+      // Delete files from DATA_PATH
+      const zipPath = join(config.DATA_PATH, "uploads", `${modelId}.zip`);
+      const extractPath = join(config.DATA_PATH, "models", modelId);
 
       if (existsSync(zipPath)) {
         await Bun.$`rm -f ${zipPath}`;

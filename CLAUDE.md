@@ -93,7 +93,9 @@ export const messages = sqliteTable("messages", {
   content: text("content").notNull(),
   role: text("role").notNull(), // 'user' | 'assistant'
   model: text("model").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // models table - stores uploaded model info
@@ -103,7 +105,9 @@ export const models = sqliteTable("models", {
   alias: text("alias").notNull(),
   size: integer("size"),
   downloaded: integer("downloaded", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // traces table - stores API usage metrics
@@ -116,7 +120,9 @@ export const traces = sqliteTable("traces", {
   completionTokens: integer("completion_tokens"),
   totalTokens: integer("total_tokens"),
   duration: integer("duration"), // Time in milliseconds
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 ```
 

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from "fs";
 import { db } from "../db/index";
 import { models } from "../db/schema";
 import { eq } from "drizzle-orm";
+import config from "../config";
 
 async function validateZipFile(zipPath: string): Promise<boolean> {
   console.log(`🔍 Validating ZIP file: ${zipPath}`);
@@ -230,8 +231,8 @@ export async function importModelToOllama(
       throw new Error(`ZIP file not found at: ${zipPath}`);
     }
 
-    // Create directories for extraction and modelfile
-    const baseDir = join(process.cwd(), "models");
+    // Create directories for extraction and modelfile in DATA_PATH
+    const baseDir = join(config.DATA_PATH, "models");
     const extractDir = join(baseDir, modelId);
     const modelfileDir = join(baseDir, `${modelId}_modelfile`);
 
