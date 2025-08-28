@@ -154,7 +154,9 @@ export async function chatWithOllama(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+      throw new Error(
+        `HTTP error! status: ${response.status}, body: ${errorText}`,
+      );
     }
 
     const data = await response.json();
@@ -221,7 +223,7 @@ export async function* chatWithOllamaStream(
           }
         }
       }
-      
+
       // Process any remaining buffer
       if (buffer.trim()) {
         try {

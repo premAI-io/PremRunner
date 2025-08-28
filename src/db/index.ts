@@ -23,15 +23,21 @@ export async function initializeDatabase() {
     // Use embedded migrations for executable deployment
     try {
       // Check if we need to run migrations by checking if tables exist
-      const tablesResult = sqlite.query("SELECT name FROM sqlite_master WHERE type='table'").all();
+      const tablesResult = sqlite
+        .query("SELECT name FROM sqlite_master WHERE type='table'")
+        .all();
       const existingTables = tablesResult.map((row: any) => row.name);
-      
+
       // If core tables already exist, skip migrations
-      if (existingTables.includes('messages') && existingTables.includes('models') && existingTables.includes('traces')) {
+      if (
+        existingTables.includes("messages") &&
+        existingTables.includes("models") &&
+        existingTables.includes("traces")
+      ) {
         console.log("✅ Database already initialized, skipping migrations");
         return;
       }
-      
+
       // Run embedded migrations
       for (const migration of migrations) {
         const statements = migration.sql.split("--> statement-breakpoint");
@@ -39,7 +45,10 @@ export async function initializeDatabase() {
           const trimmed = statement.trim();
           if (trimmed) {
             // Replace CREATE TABLE with CREATE TABLE IF NOT EXISTS
-            const safeStatement = trimmed.replace(/CREATE TABLE/gi, 'CREATE TABLE IF NOT EXISTS');
+            const safeStatement = trimmed.replace(
+              /CREATE TABLE/gi,
+              "CREATE TABLE IF NOT EXISTS",
+            );
             sqlite.exec(safeStatement);
           }
         }

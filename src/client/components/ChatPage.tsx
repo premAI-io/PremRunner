@@ -48,14 +48,15 @@ export default function ChatPage() {
       textareaRef.current.style.height = "48px";
       const scrollHeight = textareaRef.current.scrollHeight;
       textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
-      textareaRef.current.style.overflowY = scrollHeight > 120 ? "auto" : "hidden";
+      textareaRef.current.style.overflowY =
+        scrollHeight > 120 ? "auto" : "hidden";
     }
   }, [inputMessage]);
 
   const loadChatHistory = async () => {
     try {
       const response = await client.api.chat.history.$get();
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
       setMessages(data.messages || []);
     } catch (error) {
       console.error("Failed to load chat history:", error);
@@ -114,17 +115,17 @@ export default function ChatPage() {
     try {
       // Prepare messages array with full conversation history
       const messageArray = [];
-      
+
       // Add system prompt if provided
       if (systemPrompt.trim()) {
         messageArray.push({ role: "system", content: systemPrompt.trim() });
       }
-      
+
       // Add all previous messages from the conversation (before the new ones)
-      previousMessages.forEach(msg => {
+      previousMessages.forEach((msg) => {
         messageArray.push({ role: msg.role, content: msg.content });
       });
-      
+
       // Add the new user message
       messageArray.push({ role: "user", content: userMessage });
 
@@ -289,8 +290,8 @@ export default function ChatPage() {
                       </div>
                       <p
                         className={`text-xs mt-2 px-1 ${
-                          msg.role === "user" 
-                            ? "text-right text-stone-500" 
+                          msg.role === "user"
+                            ? "text-right text-stone-500"
                             : "text-left text-stone-500"
                         }`}
                       >
@@ -359,7 +360,10 @@ export default function ChatPage() {
           <div className="space-y-6">
             {/* Model Selection */}
             <div className="space-y-2">
-              <label htmlFor="model" className="block text-sm font-medium text-stone-700">
+              <label
+                htmlFor="model"
+                className="block text-sm font-medium text-stone-700"
+              >
                 Model
               </label>
               <select
@@ -379,7 +383,10 @@ export default function ChatPage() {
 
             {/* System Prompt */}
             <div className="space-y-2">
-              <label htmlFor="systemPrompt" className="block text-sm font-medium text-stone-700">
+              <label
+                htmlFor="systemPrompt"
+                className="block text-sm font-medium text-stone-700"
+              >
                 System Prompt
               </label>
               <textarea

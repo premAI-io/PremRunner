@@ -11,6 +11,7 @@ PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploa
 ## Current Implementation Status
 
 ✅ **Completed:**
+
 - Basic Hono server setup with hot reload
 - OpenAI-compatible `/v1/chat/completions` endpoint (streaming & non-streaming)
 - Ollama integration with automatic startup management
@@ -21,10 +22,12 @@ PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploa
 - React frontend with Tailwind CSS
 
 🚧 **In Progress:**
+
 - Model upload functionality
 - Models management UI
 
 ❌ **Not Yet Implemented:**
+
 - Drag-and-drop model file uploads
 - `/v1/models` endpoint to list available models
 - Model management endpoints (upload/delete)
