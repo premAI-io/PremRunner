@@ -12,26 +12,37 @@ PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploa
 
 ✅ **Completed:**
 
-- Basic Hono server setup with hot reload
+- Basic Hono server setup with hot reload on port 3001
 - OpenAI-compatible `/v1/chat/completions` endpoint (streaming & non-streaming)
 - Ollama integration with automatic startup management
 - SQLite database with Drizzle ORM
-- Database migrations embedded for executables
+- Database schema with 3 tables: `messages`, `models`, `traces`
 - Basic chat API at `/api/chat`
-- Messages table for storing chat history
-- React frontend with Tailwind CSS
+- Messages storage with chat history
+- Traces storage for tracking API usage (tokens, duration)
+- React frontend with Tailwind CSS (CDN-based, no build step)
+- Three-page SPA with navigation sidebar (Chat, Models, Traces)
+- `/v1/models` endpoint - List available models ✅
+- `/v1/models/upload` endpoint - Upload new model files ✅
+- `/v1/models/:id` DELETE endpoint - Delete models ✅
+- `/v1/models/:id/status` endpoint - Check model import status ✅
+- `/v1/models/import` endpoint - Import model to Ollama ✅
+- `/v1/traces` endpoint - List traces with pagination ✅
+- `/v1/traces/:id` endpoint - Get trace details ✅
+- Chunked upload system for large model files (via `/v1/chunked-upload/*`)
+- Model import functionality to Ollama
+- 10GB max request body size support
 
 🚧 **In Progress:**
 
-- Model upload functionality
-- Models management UI
+- Frontend implementation for model upload UI
+- Frontend chat interface improvements
 
 ❌ **Not Yet Implemented:**
 
-- Drag-and-drop model file uploads
-- `/v1/models` endpoint to list available models
-- Model management endpoints (upload/delete)
-- Complete frontend chat interface
+- Drag-and-drop interface for model uploads in frontend
+- Complete frontend integration for all backend features
+- WebSocket support for real-time updates
 
 ## Tech Stack & Tools
 
@@ -73,18 +84,39 @@ PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploa
 
 ## Database Schema (Drizzle + SQLite)
 
-Create a simple models table:
+Current database schema with three tables:
 
 ```ts
-import { sqliteTable, text, integer, boolean } from "drizzle-orm/sqlite-core";
+// messages table - stores chat history
+export const messages = sqliteTable("messages", {
+  id: text("id").primaryKey(),
+  content: text("content").notNull(),
+  role: text("role").notNull(), // 'user' | 'assistant'
+  model: text("model").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
 
+// models table - stores uploaded model info
 export const models = sqliteTable("models", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   alias: text("alias").notNull(),
   size: integer("size"),
-  uploadedAt: integer("uploaded_at", { mode: "timestamp" }),
-  active: boolean("active").default(true),
+  downloaded: integer("downloaded", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+// traces table - stores API usage metrics
+export const traces = sqliteTable("traces", {
+  id: text("id").primaryKey(),
+  input: text("input").notNull(), // JSON string of conversation
+  output: text("output").notNull(), // Assistant response
+  model: text("model").notNull(),
+  promptTokens: integer("prompt_tokens"),
+  completionTokens: integer("completion_tokens"),
+  totalTokens: integer("total_tokens"),
+  duration: integer("duration"), // Time in milliseconds
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 ```
 
@@ -99,22 +131,33 @@ export const models = sqliteTable("models", {
 
 **Implemented endpoints:**
 
-- `POST /v1/chat/completions` - OpenAI compatible chat endpoint ✅
 - `GET /api/hello` - Test endpoint ✅
 - `GET /api/ollama/status` - Check Ollama status ✅
 - `/api/chat` routes - Basic chat functionality ✅
 
-**Required endpoints for full Prem SDK compatibility:**
+**OpenAI-Compatible API (v1) Endpoints:**
 
-- `GET /v1/models` - List available models ❌
-- `POST /v1/models/upload` - Upload new model ❌
-- `DELETE /v1/models/:id` - Delete model ❌
+- `POST /v1/chat/completions` - OpenAI compatible chat endpoint (streaming & non-streaming) ✅
+- `GET /v1/models` - List available models ✅
+- `POST /v1/models/upload` - Upload new model (supports large files) ✅
+- `DELETE /v1/models/:id` - Delete model ✅
+- `GET /v1/models/:id/status` - Check model import status ✅
+- `POST /v1/models/import` - Import model to Ollama ✅
+- `GET /v1/traces` - List traces with pagination ✅
+- `GET /v1/traces/:id` - Get trace details ✅
+
+**Chunked Upload Endpoints:**
+
+- `POST /v1/chunked-upload/start` - Initialize chunked upload ✅
+- `POST /v1/chunked-upload/chunk` - Upload a chunk ✅
+- `POST /v1/chunked-upload/complete` - Assemble chunks ✅
 
 **Frontend routes:**
 
-- `/` - Main chat interface (basic implementation) ✅
-- Model upload interface ❌
-- Models list/management ❌
+- `/` - Main SPA with navigation ✅
+  - Chat page - Basic chat interface ✅
+  - Models page - Model management UI (partial) 🚧
+  - Traces page - API usage tracking ✅
 
 ## Server Setup
 
@@ -181,8 +224,8 @@ Keep it simple:
 
 ## Development Commands
 
-- `bun --hot src/index.ts` - Start development server with hot reload
+- `bun run dev` or `bun --hot src/index.ts` - Start development server with hot reload
 - `bun run format` - Format code with Prettier
-- `bun run db:generate` - Generate database migrations and embed them
 - `bun run db:push` - Push database schema changes
 - `bun run studio` - Open Drizzle Studio for database management
+- `bun run start` - Run db:push and start server (production mode)

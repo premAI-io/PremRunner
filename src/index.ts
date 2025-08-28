@@ -38,9 +38,7 @@ async function startServer() {
     maxRequestBodySize: 10 * 1024 * 1024 * 1024, // 10GB limit
   });
 
-  console.log(
-    `📊 Max request body size: ${((10 * 1024 * 1024 * 1024) / 1024 / 1024 / 1024).toFixed(0)} GB`,
-  );
+  console.log(`📊 Max request body size: 10 GB`);
 
   console.log("✅ Server running on http://localhost:3001");
 }
