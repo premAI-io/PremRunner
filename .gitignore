@@ -45,3 +45,7 @@ temp-uploads/
 models/
 
 build/
+
+.cursor/
+
+.claude/

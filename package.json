@@ -6,10 +6,9 @@
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "format": "prettier --write .",
-    "db:generate": "drizzle-kit generate && bun scripts/embed-migrations.ts",
     "db:push": "drizzle-kit push",
     "studio": "drizzle-kit studio",
-    "build": "bun build ./src/index.ts --target=bun-darwin-arm64 --compile --outfile build/premrunnerMacArm64 && bun build ./src/index.ts --target=bun-linux-x64 --compile --outfile build/premrunnerLinuxX64"
+    "start": "bun run db:push && bun src/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
