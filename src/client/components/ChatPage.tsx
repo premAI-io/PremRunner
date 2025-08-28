@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { nanoid } from "nanoid";
-import { authFetch } from "../utils/api";
 import { getClient } from "../utils/client";
 
 interface Message {
@@ -53,8 +52,7 @@ export default function ChatPage() {
 
   const loadChatHistory = async () => {
     try {
-      const client = getClient();
-      const response = await client.api.chat.history.$get();
+      const response = await getClient().api.chat.history.$get();
       if (response.ok) {
         const data = (await response.json()) as any;
         setMessages(data.messages || []);
@@ -66,9 +64,9 @@ export default function ChatPage() {
 
   const loadAvailableModels = async () => {
     try {
-      const response = await authFetch("/v1/models");
+      const response = await getClient().v1.models.$get();
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as any;
         const uploadedModels = (data.models || [])
           .filter((m: any) => m.active)
           .map((m: any) => ({
@@ -130,13 +128,12 @@ export default function ChatPage() {
       // Add the new user message
       messageArray.push({ role: "user", content: userMessage });
 
-      const response = await authFetch("/v1/chat/completions", {
-        method: "POST",
-        body: JSON.stringify({
+      const response = await getClient().v1.chat.completions.$post({
+        json: {
           model: selectedModel,
           messages: messageArray,
           stream: true,
-        }),
+        },
       });
 
       if (!response.body) {
@@ -209,7 +206,7 @@ export default function ChatPage() {
 
   const clearChat = async () => {
     try {
-      await client.api.chat.history.$delete();
+      await getClient().api.chat.history.$delete();
       setMessages([]);
     } catch (error) {
       console.error("Failed to clear chat:", error);

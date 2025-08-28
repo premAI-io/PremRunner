@@ -15,13 +15,19 @@ PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploa
 - Basic Hono server setup with hot reload on port 3001
 - OpenAI-compatible `/v1/chat/completions` endpoint (streaming & non-streaming)
 - Ollama integration with automatic startup management
-- SQLite database with Drizzle ORM
+- SQLite database with Drizzle ORM (stored in DATA_PATH)
 - Database schema with 3 tables: `messages`, `models`, `traces`
 - Basic chat API at `/api/chat`
 - Messages storage with chat history
 - Traces storage for tracking API usage (tokens, duration)
 - React frontend with Tailwind CSS (CDN-based, no build step)
 - Three-page SPA with navigation sidebar (Chat, Models, Traces)
+- **Simple token-based authentication system**
+  - Bearer token authentication for all API endpoints
+  - Auth middleware using Hono's `createMiddleware`
+  - Frontend auth dialog with localStorage persistence
+  - Automatic logout on invalid token
+  - Typed Hono client with automatic auth headers
 - `/v1/models` endpoint - List available models ✅
 - `/v1/models/upload` endpoint - Upload new model files ✅
 - `/v1/models/:id` DELETE endpoint - Delete models ✅
@@ -32,6 +38,7 @@ PremRunner is a website/API that wraps Ollama to allow drag-and-drop model uploa
 - Chunked upload system for large model files (via `/v1/chunked-upload/*`)
 - Model import functionality to Ollama
 - 10GB max request body size support
+- All runtime data centralized in DATA_PATH directory
 
 🚧 **In Progress:**
 
@@ -227,6 +234,10 @@ Keep it simple:
 - No testing framework needed
 - Use `Bun.file()` for file operations
 - Use `Bun.$` for shell commands when needed
+- **Use Hono client for all frontend API calls**
+  - Client automatically includes auth token from localStorage
+  - Type-safe API calls with `getClient()` utility
+  - Example: `const client = getClient(); await client.v1.models.$get()`
 
 ## Development Commands
 
@@ -235,3 +246,27 @@ Keep it simple:
 - `bun run db:push` - Push database schema changes
 - `bun run studio` - Open Drizzle Studio for database management
 - `bun run start` - Run db:push and start server (production mode)
+
+## Authentication System
+
+### Backend
+
+- Token-based authentication using `AUTH_TOKEN` environment variable (min 10 chars)
+- Auth middleware on all `/api/*` and `/v1/*` routes
+- `/api/auth/verify` endpoint for token validation (no auth required)
+- Bearer token expected in Authorization header
+
+### Frontend
+
+- AuthDialog component prompts for token on first visit
+- Token stored in localStorage as `authToken`
+- Hono client (`getClient()`) automatically includes Bearer token
+- Automatic logout and reload on 401 responses
+- Logout button in sidebar clears token
+
+### Environment Variables
+
+```bash
+DATA_PATH=/path/to/data       # All runtime data stored here
+AUTH_TOKEN=your-secret-token  # Min 10 characters
+```

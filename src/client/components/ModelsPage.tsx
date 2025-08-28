@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { authFetch } from "../utils/api";
+import { getClient } from "../utils/client";
 
 interface Model {
   id: string;
@@ -31,7 +31,7 @@ export default function ModelsPage() {
 
   const loadModels = async () => {
     try {
-      const response = await authFetch("/v1/models");
+      const response = await getClient().v1.models.$get();
       if (response.ok) {
         const data = await response.json();
         setModels(data.models || []);
@@ -120,14 +120,12 @@ export default function ModelsPage() {
     );
 
     // Step 1: Initialize chunked upload
-    const initResponse = await authFetch("/v1/chunked-upload/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const initResponse = await getClient().v1["chunked-upload"].start.$post({
+      json: {
         fileName: file.name,
         fileSize: file.size,
         modelName: modelName,
-      }),
+      },
     });
 
     if (!initResponse.ok) {
@@ -149,8 +147,10 @@ export default function ModelsPage() {
       formData.append("chunkIndex", i.toString());
       formData.append("totalChunks", totalChunks.toString());
 
-      const chunkResponse = await authFetch("/v1/chunked-upload/chunk", {
+      const token = localStorage.getItem("authToken");
+      const chunkResponse = await fetch("/v1/chunked-upload/chunk", {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
 
@@ -166,14 +166,14 @@ export default function ModelsPage() {
     }
 
     // Step 3: Complete upload
-    const completeResponse = await authFetch("/v1/chunked-upload/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const completeResponse = await getClient().v1[
+      "chunked-upload"
+    ].complete.$post({
+      json: {
         modelId,
         modelName,
         totalChunks,
-      }),
+      },
     });
 
     if (!completeResponse.ok) {
@@ -213,8 +213,10 @@ export default function ModelsPage() {
         formData.append("modelName", modelName.trim());
         formData.append("filePath", result.path);
 
-        const importResponse = await authFetch("/v1/models/import", {
+        const token = localStorage.getItem("authToken");
+        const importResponse = await fetch("/v1/models/import", {
           method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: formData,
         });
 
@@ -288,6 +290,10 @@ export default function ModelsPage() {
         });
 
         xhr.open("POST", "/v1/models/upload");
+        const token = localStorage.getItem("authToken");
+        if (token) {
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        }
         xhr.send(formData);
       }
     } catch (error) {
@@ -304,8 +310,8 @@ export default function ModelsPage() {
     }
 
     try {
-      const response = await authFetch(`/v1/models/${modelId}`, {
-        method: "DELETE",
+      const response = await getClient().v1.models[":id"].$delete({
+        param: { id: modelId },
       });
       if (response.ok) {
         loadModels();
@@ -330,7 +336,9 @@ export default function ModelsPage() {
 
     const checkStatus = async () => {
       try {
-        const response = await authFetch(`/v1/models/${modelId}/status`);
+        const response = await getClient().v1.models[":id"].status.$get({
+          param: { id: modelId },
+        });
         if (response.ok) {
           const data = await response.json();
           if (data.imported) {

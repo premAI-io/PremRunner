@@ -1,9 +1,5 @@
 import { useState, useEffect } from "react";
-import { hc } from "hono/client";
-import type { ApiType } from "../../index.js";
-import { authFetch } from "../utils/api";
-
-const client = hc<ApiType>("/");
+import { getClient } from "../utils/client";
 
 interface Trace {
   id: string;
@@ -35,9 +31,11 @@ export default function TracesPage() {
   const loadTraces = async () => {
     try {
       setLoading(true);
-      const response = await authFetch(`/v1/traces?page=${page}&limit=20`);
+      const response = await getClient().v1.traces.$get({
+        query: { page: page.toString(), limit: "20" },
+      });
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as any;
         setTraces(data.traces || []);
         setTotalPages(data.pages || 1);
         setTotal(data.total || 0);
@@ -51,9 +49,11 @@ export default function TracesPage() {
 
   const loadTraceDetail = async (traceId: string) => {
     try {
-      const response = await authFetch(`/v1/traces/${traceId}`);
+      const response = await getClient().v1.traces[":id"].$get({
+        param: { id: traceId },
+      });
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as any;
         setSelectedTrace(data);
       }
     } catch (error) {
