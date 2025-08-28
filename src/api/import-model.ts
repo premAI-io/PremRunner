@@ -182,20 +182,44 @@ async function createModelfile(modelPath: string, modelfileDir: string): Promise
   // Look for specific model files (*.bin, *.gguf, *.safetensors, etc.)
   let modelFilePath = modelPath;
   
-  // Check if there's a single model file in the directory
-  const findProc = Bun.spawn(["find", modelPath, "-type", "f", "-name", "*.bin", "-o", "-name", "*.gguf", "-o", "-name", "*.safetensors"], {
+  // Check if there's a subdirectory (common in ZIP exports)
+  const findDirsProc = Bun.spawn(["find", modelPath, "-type", "d", "-maxdepth", "1"], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const findDirsOutput = await new Response(findDirsProc.stdout).text();
+  const dirs = findDirsOutput.trim().split('\n').filter(d => d && d !== modelPath);
+  
+  // If there's exactly one subdirectory, use it
+  if (dirs.length === 1) {
+    console.log(`📂 Found subdirectory: ${dirs[0]}`);
+    modelFilePath = dirs[0];
+    
+    // List contents of subdirectory
+    const subLsProc = Bun.spawn(["ls", "-la", modelFilePath], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const subLsOutput = await new Response(subLsProc.stdout).text();
+    console.log(`📁 Subdirectory contents:\n${subLsOutput}`);
+  }
+  
+  // Check for safetensors files
+  const findProc = Bun.spawn(["find", modelFilePath, "-type", "f", "-name", "*.safetensors", "-o", "-name", "*.bin", "-o", "-name", "*.gguf"], {
     stdio: ["ignore", "pipe", "pipe"],
   });
   const findOutput = await new Response(findProc.stdout).text();
-  const modelFiles = findOutput.trim().split('\n').filter(f => f);
+  const modelFiles = findOutput.trim().split('\n').filter(f => f && f.includes('.'));
   
-  if (modelFiles.length === 1 && modelFiles[0]) {
-    modelFilePath = modelFiles[0];
-    console.log(`📦 Found single model file: ${modelFilePath}`);
-  } else if (modelFiles.length > 1) {
-    console.log(`⚠️ Found multiple model files, using directory: ${modelFiles.join(', ')}`);
-  } else {
-    console.log(`⚠️ No specific model files found, using directory: ${modelPath}`);
+  console.log(`🔍 Found model files: ${modelFiles.length} files`);
+  if (modelFiles.length > 0) {
+    console.log(`📦 Model files found:\n${modelFiles.join('\n')}`);
+    
+    // For multi-part safetensors, we need to point to the directory containing them
+    if (modelFiles.some(f => f.includes('safetensors'))) {
+      // Get the directory containing the safetensors files
+      const modelDir = modelFiles[0].substring(0, modelFiles[0].lastIndexOf('/'));
+      modelFilePath = modelDir;
+      console.log(`📂 Using safetensors directory: ${modelFilePath}`);
+    }
   }
   
   // Create modelfile directory if it doesn't exist
