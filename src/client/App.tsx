@@ -79,7 +79,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-stone-50 flex">
       {/* Sidebar Navigation */}
-      <div className="w-[250px] min-w-[250px] bg-stone-50 border-r border-stone-200 flex flex-col">
+      <div className="w-64 flex-shrink-0 bg-stone-50 border-r border-stone-200 flex flex-col">
         <div className="h-[73px] border-b border-stone-200 bg-stone-50 flex items-center px-6">
           <div className="flex items-center gap-3">
             <PremIcon className="w-8 h-9 text-stone-950" />
