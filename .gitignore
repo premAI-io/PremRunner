@@ -49,3 +49,6 @@ build/
 .cursor/
 
 .claude/
+exampleZipExtractedFullFT/
+
+exampleZipExtractedLora/

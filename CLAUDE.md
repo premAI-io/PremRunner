@@ -190,7 +190,7 @@ app.route("/v1", apiRoutes);
 // Start server
 Bun.serve({
   fetch: app.fetch,
-  port: 3000,
+  port: 3001,
   development: {
     hmr: true,
   },
